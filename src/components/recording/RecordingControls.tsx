@@ -52,6 +52,12 @@ export default function RecordingControls({
     setSettings((prev) => ({ ...prev, exportFormat: value as ExportFormat }));
   };
 
+  const handleNewRecording = () => {
+    // This is a bit of a hack, but it resets the state in useRecording hook.
+    // A better approach would be a dedicated reset function.
+    window.location.reload();
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-center gap-4">
@@ -85,7 +91,7 @@ export default function RecordingControls({
               Download your video or start a new recording.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+          <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="space-y-2 flex-1 w-full">
               <Label htmlFor="export-format">Format</Label>
               <Select
@@ -107,23 +113,25 @@ export default function RecordingControls({
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              size="lg"
-              onClick={handleDownload}
-              className="w-full sm:w-auto mt-4 sm:mt-0 self-end"
-              disabled={status === 'converting'}
-            >
-              <Download className="mr-2 h-5 w-5" /> 
-              {status === 'converting' ? 'Converting...' : 'Download'}
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => setSettings((prev) => ({...prev, status: 'idle'}))}
-              className="w-full sm:w-auto"
-            >
-              <Clapperboard className="mr-2 h-5 w-5" /> New Recording
-            </Button>
+            <div className="flex w-full sm:w-auto gap-4">
+              <Button
+                size="lg"
+                onClick={handleDownload}
+                className="flex-1 sm:flex-none"
+                disabled={status === 'converting'}
+              >
+                <Download className="mr-2 h-5 w-5" /> 
+                {status === 'converting' ? 'Converting...' : 'Download'}
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={handleNewRecording}
+                className="flex-1 sm:flex-none"
+              >
+                <Clapperboard className="mr-2 h-5 w-5" /> New Recording
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
