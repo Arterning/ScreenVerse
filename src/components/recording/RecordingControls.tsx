@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { saveVideoToDB } from "@/lib/db";
+import { useToast } from "@/hooks/use-toast";
 import type { RecordingStatus, Settings, ExportFormat } from "./types";
 
 interface RecordingControlsProps {
@@ -52,6 +54,7 @@ export default function RecordingControls({
   setSettings,
 }: RecordingControlsProps) {
   const router = useRouter();
+  const { toast } = useToast();
   
   const setExportFormat = (value: string) => {
     setSettings((prev) => ({ ...prev, exportFormat: value as ExportFormat }));
@@ -63,20 +66,19 @@ export default function RecordingControls({
 
   const handleEdit = async () => {
     if (videoUrl) {
-      // Fetch the blob from the URL
-      const response = await fetch(videoUrl);
-      const blob = await response.blob();
-      
-      // We need to store it in a way the /edit page can access it.
-      // localStorage is a good option for blobs, but it only stores strings.
-      // A common trick is to use FileReader to convert the Blob to a Base64 data URL.
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        localStorage.setItem('recordedVideoUrl', dataUrl);
+      try {
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        await saveVideoToDB(blob);
         router.push('/edit');
-      };
-      reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Failed to save video to DB:", error);
+        toast({
+          title: "Error preparing for edit",
+          description: "Could not save the video for the editor. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 

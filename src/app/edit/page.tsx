@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { Download, Scissors, Crop } from 'lucide-react';
+import { getVideoFromDB, clearDB } from '@/lib/db';
 
 export default function EditPage() {
   const router = useRouter();
@@ -42,21 +43,37 @@ export default function EditPage() {
   };
 
   useEffect(() => {
-    const blobUrl = localStorage.getItem('recordedVideoUrl');
-    if (!blobUrl) {
-      toast({
-        title: 'No Video Found',
-        description: 'No recorded video to edit. Redirecting to home.',
-        variant: 'destructive',
-      });
-      router.push('/');
-    } else {
-      setVideoUrl(blobUrl);
-      loadFFmpeg();
-    }
+    const loadVideo = async () => {
+      try {
+        const videoBlob = await getVideoFromDB();
+        if (videoBlob) {
+          const url = URL.createObjectURL(videoBlob);
+          setVideoUrl(url);
+          loadFFmpeg();
+        } else {
+          toast({
+            title: 'No Video Found',
+            description: 'No recorded video to edit. Redirecting to home.',
+            variant: 'destructive',
+          });
+          router.push('/');
+        }
+      } catch (error) {
+        console.error("Failed to load video from DB:", error);
+        toast({
+          title: 'Error Loading Video',
+          description: 'Could not load the video from the database.',
+          variant: 'destructive',
+        });
+        router.push('/');
+      }
+    };
+    
+    loadVideo();
 
     return () => {
-      localStorage.removeItem('recordedVideoUrl');
+      // Clean up the DB when the user navigates away
+      clearDB().catch(err => console.error("Failed to clear DB", err));
     };
   }, [router, toast]);
 
