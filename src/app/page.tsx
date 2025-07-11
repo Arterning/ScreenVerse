@@ -201,9 +201,14 @@ export default function Home() {
         video.onloadedmetadata = resolve;
     });
 
+    const MAX_WIDTH = 680;
+    const aspectRatio = video.videoWidth / video.videoHeight;
+    const canvasWidth = Math.min(MAX_WIDTH, video.videoWidth);
+    const canvasHeight = canvasWidth / aspectRatio;
+
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     const ctx = canvas.getContext('2d');
     
     if (!ctx) {
@@ -225,7 +230,13 @@ export default function Home() {
 
     for (let time = 0; time < duration; time += interval) {
         video.currentTime = time;
-        await new Promise(resolve => video.onseeked = resolve);
+        await new Promise(resolve => {
+            const onSeeked = () => {
+                video.removeEventListener('seeked', onSeeked);
+                resolve(null);
+            };
+            video.addEventListener('seeked', onSeeked);
+        });
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         gif.addFrame(ctx, {copy: true, delay: interval * 1000});
     }
