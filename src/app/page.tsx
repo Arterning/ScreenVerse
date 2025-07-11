@@ -97,7 +97,10 @@ export default function Home() {
 
   const drawZoomedFrame = useCallback(() => {
     if (!followMouseZoom || !fullScreenVideoRef.current || !canvasRef.current || status !== 'recording') {
-      animationFrameRef.current = undefined; // Stop loop if conditions are not met
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
       return;
     }
 
@@ -186,10 +189,14 @@ export default function Home() {
       }
     };
     
-    document.addEventListener("click", handleClick);
+    if (highlightClicks) {
+        document.addEventListener("click", handleClick);
+    }
 
     return () => {
-      document.removeEventListener("click", handleClick);
+      if (highlightClicks) {
+        document.removeEventListener("click", handleClick);
+      }
     };
   }, [highlightClicks]);
 
@@ -210,18 +217,7 @@ export default function Home() {
         audio: includeSystemAudio,
       });
   
-      let combinedStream = new MediaStream();
-  
-      // Handle Audio
-      const audioTracks: MediaStreamTrack[] = [];
-      if (includeSystemAudio) {
-        displayStream.getAudioTracks().forEach(track => audioTracks.push(track));
-      }
-      if (includeMic) {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micStream.getAudioTracks().forEach(track => audioTracks.push(track));
-      }
-      audioTracks.forEach(track => combinedStream.addTrack(track));
+      let combinedStream: MediaStream;
   
       // Handle Video
       if (followMouseZoom) {
@@ -234,7 +230,6 @@ export default function Home() {
         const {width, height} = displayStream.getVideoTracks()[0].getSettings();
         canvas.width = width || 1920;
         canvas.height = height || 1080;
-        canvas.style.display = 'block';
   
         video.srcObject = displayStream;
         video.muted = true;
@@ -242,26 +237,37 @@ export default function Home() {
   
         mousePosRef.current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         smoothedMousePosRef.current = mousePosRef.current;
-  
+        
+        // This is a new state to temporarily set status to 'recording'
+        // to get drawZoomedFrame to run one loop.
+        setStatus('recording');
         if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
+            cancelAnimationFrame(animationFrameRef.current);
         }
         animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
         
-        // 关键修改：确保canvas有内容后再开始捕获
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Key change: wait for canvas to have content before capturing
+        await new Promise(resolve => setTimeout(resolve, 100)); 
         
         const canvasStream = canvas.captureStream(parseInt(frameRate));
+        if (canvasRef.current) canvasRef.current.style.display = 'block';
+
+        combinedStream = new MediaStream();
         canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
-        
-        // 确保canvas在录制期间保持可见
-        canvas.style.display = 'block';
       } else {
-        displayStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
+        combinedStream = new MediaStream(displayStream.getVideoTracks());
+        if (videoPreviewRef.current) {
+            videoPreviewRef.current.srcObject = combinedStream;
+        }
       }
 
-      if (videoPreviewRef.current && !followMouseZoom) {
-          videoPreviewRef.current.srcObject = combinedStream;
+      // Handle Audio
+      if (includeSystemAudio) {
+        displayStream.getAudioTracks().forEach(track => combinedStream.addTrack(track.clone()));
+      }
+      if (includeMic) {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStream.getAudioTracks().forEach(track => combinedStream.addTrack(track.clone()));
       }
   
       mainStreamRef.current = combinedStream;
@@ -277,10 +283,9 @@ export default function Home() {
         ? "video/mp4" 
         : "video/webm";
       
-      // 修改MediaRecorder创建部分
       const options = {
         mimeType,
-        videoBitsPerSecond: 2500000 // 添加比特率设置
+        videoBitsPerSecond: 2500000 
       };
       
       const recorder = new MediaRecorder(mainStreamRef.current, options);
@@ -309,6 +314,7 @@ export default function Home() {
       };
 
       recorder.start();
+      setStatus("recording"); // Ensure status is correctly set for UI
     } catch (error) {
       console.error("Error starting recording:", error);
       toast({
@@ -679,5 +685,3 @@ export default function Home() {
     </main>
   );
 }
-
-    
