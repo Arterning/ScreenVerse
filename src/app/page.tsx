@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -95,7 +96,7 @@ export default function Home() {
   }, []);
 
   const drawZoomedFrame = useCallback(() => {
-    if (!followMouseZoom || !fullScreenVideoRef.current || !canvasRef.current) {
+    if (!followMouseZoom || !fullScreenVideoRef.current || !canvasRef.current || status !== 'recording') {
       animationFrameRef.current = undefined; // Stop loop if conditions are not met
       return;
     }
@@ -134,7 +135,7 @@ export default function Home() {
     ctx.drawImage(video, sourceX, sourceY, zoomWidth, zoomHeight, 0, 0, canvasWidth, canvasHeight);
 
     animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
-  }, [followMouseZoom]);
+  }, [followMouseZoom, status]);
 
   const cleanupStreams = useCallback(() => {
     if (animationFrameRef.current) {
@@ -185,9 +186,7 @@ export default function Home() {
       }
     };
     
-    if (highlightClicks) {
-      document.addEventListener("click", handleClick);
-    }
+    document.addEventListener("click", handleClick);
 
     return () => {
       document.removeEventListener("click", handleClick);
@@ -212,16 +211,20 @@ export default function Home() {
         audio: includeSystemAudio,
       });
 
-      let audioStream = new MediaStream();
-      displayStream.getAudioTracks().forEach(track => audioStream.addTrack(track));
+      let combinedStream = new MediaStream();
 
+      // Handle Audio
+      const audioTracks: MediaStreamTrack[] = [];
+      if (includeSystemAudio) {
+        displayStream.getAudioTracks().forEach(track => audioTracks.push(track));
+      }
       if (includeMic) {
         const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micStream.getAudioTracks().forEach(track => audioStream.addTrack(track));
+        micStream.getAudioTracks().forEach(track => audioTracks.push(track));
       }
-      
-      let recordingSourceStream: MediaStream;
+      audioTracks.forEach(track => combinedStream.addTrack(track));
 
+      // Handle Video
       if (followMouseZoom) {
         const canvas = canvasRef.current;
         if (!canvas) throw new Error("Canvas not found");
@@ -232,6 +235,7 @@ export default function Home() {
         const {width, height} = displayStream.getVideoTracks()[0].getSettings();
         canvas.width = width || 1920;
         canvas.height = height || 1080;
+        canvas.style.display = 'block';
 
         video.srcObject = displayStream;
         video.muted = true;
@@ -245,24 +249,17 @@ export default function Home() {
         }
         animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
         
-        recordingSourceStream = canvas.captureStream(parseInt(frameRate));
-        audioStream.getAudioTracks().forEach(track => recordingSourceStream.addTrack(track));
-
+        const canvasStream = canvas.captureStream(parseInt(frameRate));
+        canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
       } else {
-        recordingSourceStream = new MediaStream();
-        displayStream.getVideoTracks().forEach(track => recordingSourceStream.addTrack(track));
-        audioStream.getAudioTracks().forEach(track => recordingSourceStream.addTrack(track));
+        displayStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
       }
 
-      if (videoPreviewRef.current) {
-          videoPreviewRef.current.srcObject = recordingSourceStream;
+      if (videoPreviewRef.current && !followMouseZoom) {
+          videoPreviewRef.current.srcObject = combinedStream;
       }
 
-      mainStreamRef.current = new MediaStream([
-          ...recordingSourceStream.getVideoTracks(),
-          ...audioStream.getAudioTracks(),
-          ...(displayStream.getAudioTracks()),
-      ]);
+      mainStreamRef.current = combinedStream;
 
       if (pipEnabled) {
         const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -290,6 +287,7 @@ export default function Home() {
         const url = URL.createObjectURL(blob);
         setVideoUrl(url);
         setStatus("preview");
+        if (canvasRef.current) canvasRef.current.style.display = 'none';
         cleanupStreams();
       };
       
@@ -315,6 +313,10 @@ export default function Home() {
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording" || mediaRecorderRef.current?.state === "paused") {
       mediaRecorderRef.current.stop();
+    }
+     if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
     }
   }, []);
 
@@ -590,9 +592,8 @@ export default function Home() {
                     <p className="text-sm">Choose your settings and start recording.</p>
                   </div>
                 )}
-                {/* We use the canvas for the zoom effect, but it's always in the DOM to be recorded */}
-                <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full object-contain" style={{ display: 'none' }} />
-                {(status === "recording" || status === "paused") && (
+                <canvas ref={canvasRef} className="w-full h-full object-contain" style={{ display: 'none' }} />
+                {(status === "recording" || status === "paused") && !followMouseZoom && (
                   <>
                     <video
                       ref={videoPreviewRef}
@@ -600,6 +601,10 @@ export default function Home() {
                       muted
                       className="w-full h-full object-contain"
                     />
+                  </>
+                )}
+                {(status === "recording" || status === "paused") && (
+                   <>
                     {pipEnabled && (
                       <video
                           ref={cameraPreviewRef}
@@ -608,7 +613,6 @@ export default function Home() {
                           className="absolute bottom-4 right-4 w-48 h-auto rounded-lg shadow-lg border-2 border-primary"
                       />
                     )}
-                    {/* Don't show annotation toolbar when zooming as coords are off */}
                     {!followMouseZoom && <AnnotationToolbar />}
                   </>
                 )}
@@ -664,3 +668,5 @@ export default function Home() {
     </main>
   );
 }
+
+    
