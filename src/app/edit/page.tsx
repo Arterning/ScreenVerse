@@ -71,10 +71,10 @@ export default function EditPage() {
     
     loadVideo();
 
-    return () => {
-      // Clean up the DB when the user navigates away
-      clearDB().catch(err => console.error("Failed to clear DB", err));
-    };
+    // return () => {
+    //   // Clean up the DB when the user navigates away
+    //   clearDB().catch(err => console.error("Failed to clear DB", err));
+    // };
   }, [router, toast]);
 
   const handleLoadedMetadata = () => {

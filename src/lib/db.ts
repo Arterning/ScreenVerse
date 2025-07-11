@@ -36,8 +36,9 @@ export async function saveVideoToDB(blob: Blob): Promise<void> {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.put(blob, VIDEO_KEY);
 
-    request.onsuccess = () => resolve();
+    transaction.oncomplete = () => resolve();// ✅ 等待事务完成
     request.onerror = (event) => reject((event.target as IDBRequest).error);
+    transaction.onabort = (event) => reject((event.target as IDBRequest).error);
   });
 }
 
