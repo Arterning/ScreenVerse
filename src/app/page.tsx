@@ -20,6 +20,7 @@ import {
   Pencil,
   Shapes,
   Highlighter,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import GIF from 'gif.js';
 
 type RecordingStatus = "idle" | "recording" | "paused" | "preview";
 type ExportFormat = "video/webm" | "video/mp4" | "image/gif";
@@ -61,6 +63,8 @@ export default function Home() {
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -68,6 +72,7 @@ export default function Home() {
   const mainStreamRef = useRef<MediaStream | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const cameraPreviewRef = useRef<HTMLVideoElement>(null);
+  const videoBlobRef = useRef<Blob | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -86,6 +91,7 @@ export default function Home() {
     cleanupStreams();
     setStatus("recording");
     recordedChunksRef.current = [];
+    videoBlobRef.current = null;
     setVideoUrl(null);
 
     try {
@@ -137,6 +143,7 @@ export default function Home() {
 
       recorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        videoBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setVideoUrl(url);
         setStatus("preview");
@@ -183,7 +190,73 @@ export default function Home() {
     }
   };
 
+  const convertToGif = async (videoBlob: Blob) => {
+    setIsConverting(true);
+    toast({ title: 'Converting to GIF...', description: 'This may take a moment.' });
+  
+    const video = document.createElement('video');
+    video.src = URL.createObjectURL(videoBlob);
+    
+    await new Promise(resolve => {
+        video.onloadedmetadata = resolve;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      toast({ title: 'Error', description: 'Could not create canvas context.', variant: 'destructive' });
+      setIsConverting(false);
+      return;
+    }
+
+    const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: canvas.width,
+        height: canvas.height,
+        workerScript: '/gif.worker.js'
+    });
+
+    const duration = video.duration;
+    const interval = 1 / 10; // 10 fps
+
+    for (let time = 0; time < duration; time += interval) {
+        video.currentTime = time;
+        await new Promise(resolve => video.onseeked = resolve);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        gif.addFrame(ctx, {copy: true, delay: interval * 1000});
+    }
+
+    gif.on('finished', (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ScreenVerse-recording-${new Date().toISOString()}.gif`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setIsConverting(false);
+        toast({ title: 'Success!', description: 'GIF downloaded.' });
+    });
+
+    gif.render();
+  };
+
+
   const handleDownload = () => {
+    if (exportFormat === 'image/gif') {
+      if (videoBlobRef.current) {
+        convertToGif(videoBlobRef.current);
+      } else {
+        toast({ title: 'Error', description: 'No video data to convert.', variant: 'destructive' });
+      }
+      return;
+    }
+
     if (videoUrl) {
       const a = document.createElement("a");
       a.href = videoUrl;
@@ -384,12 +457,17 @@ export default function Home() {
                                 <SelectContent>
                                     <SelectItem value="video/webm">WebM</SelectItem>
                                     <SelectItem value="video/mp4" disabled={!MediaRecorder.isTypeSupported('video/mp4')}>MP4 (Browser Dependant)</SelectItem>
-                                    <SelectItem value="image/gif" disabled>GIF (Coming Soon)</SelectItem>
+                                    <SelectItem value="image/gif">GIF</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-                       <Button size="lg" onClick={handleDownload} className="w-full sm:w-auto mt-4 sm:mt-0 self-end">
-                         <Download className="mr-2 h-5 w-5" /> Download
+                       <Button size="lg" onClick={handleDownload} className="w-full sm:w-auto mt-4 sm:mt-0 self-end" disabled={isConverting}>
+                        {isConverting ? (
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          ) : (
+                            <Download className="mr-2 h-5 w-5" />
+                          )}
+                          {isConverting ? 'Converting...' : 'Download'}
                        </Button>
                        <Button size="lg" variant="outline" onClick={() => setStatus("idle")} className="w-full sm:w-auto">
                          <Clapperboard className="mr-2 h-5 w-5" /> New Recording
