@@ -55,8 +55,8 @@ export default function Home() {
   const [includeSystemAudio, setIncludeSystemAudio] = useState(true);
   const [includeMic, setIncludeMic] = useState(false);
   const [pipEnabled, setPipEnabled] = useState(false);
-  const [highlightCursor, setHighlightCursor] = useState(true);
-  const [highlightClicks, setHighlightClicks] = useState(true);
+  const [highlightCursor, setHighlightCursor] = useState(false);
+  const [highlightClicks, setHighlightClicks] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("video/webm");
 
   // Recording State
@@ -71,6 +71,8 @@ export default function Home() {
   const recordedChunksRef = useRef<Blob[]>([]);
   const mainStreamRef = useRef<MediaStream | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const highlightCursorRef = useRef<HTMLDivElement>(null);
+  const clickAnimationContainerRef = useRef<HTMLDivElement>(null);
   const cameraPreviewRef = useRef<HTMLVideoElement>(null);
   const videoBlobRef = useRef<Blob | null>(null);
 
@@ -86,6 +88,50 @@ export default function Home() {
     if (videoPreviewRef.current) videoPreviewRef.current.srcObject = null;
     if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = null;
   }, []);
+
+  // Cursor highlighting effect
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (highlightCursor && highlightCursorRef.current) {
+        highlightCursorRef.current.style.left = `${event.clientX}px`;
+        highlightCursorRef.current.style.top = `${event.clientY}px`;
+      }
+    };
+
+    if (highlightCursor) {
+      document.addEventListener("mousemove", handleMouseMove);
+    } else {
+      document.removeEventListener("mousemove", handleMouseMove);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [highlightCursor]);
+
+  // Click highlighting effect
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (highlightClicks && clickAnimationContainerRef.current) {
+        const clickEffect = document.createElement("div");
+        clickEffect.className = "click-effect";
+        clickEffect.style.left = `${event.clientX - 10}px`; // Adjust for size
+        clickEffect.style.top = `${event.clientY - 10}px`; // Adjust for size
+        clickAnimationContainerRef.current.appendChild(clickEffect);
+        clickEffect.addEventListener("animationend", () => clickEffect.remove());
+      }
+    };
+    
+    if (highlightClicks) {
+      document.addEventListener("click", handleClick);
+    } else {
+      document.removeEventListener("click", handleClick);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
+  }, [highlightClicks]);
 
   const startRecording = useCallback(async () => {
     cleanupStreams();
@@ -349,16 +395,15 @@ export default function Home() {
                   <Label>Highlight Cursor</Label>
                    <p className="text-xs text-muted-foreground">Show a halo around the mouse.</p>
                </div>
-               <Switch checked={highlightCursor} onCheckedChange={setHighlightCursor} disabled/>
+               <Switch checked={highlightCursor} onCheckedChange={setHighlightCursor}/>
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
                <div className="space-y-0.5">
                   <Label>Highlight Clicks</Label>
                   <p className="text-xs text-muted-foreground">Animate mouse clicks.</p>
                </div>
-               <Switch checked={highlightClicks} onCheckedChange={setHighlightClicks} disabled/>
+               <Switch checked={highlightClicks} onCheckedChange={setHighlightClicks}/>
             </div>
-             <p className="text-xs text-muted-foreground text-center pt-2">Mouse enhancements coming soon!</p>
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -408,7 +453,15 @@ export default function Home() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <main className="container mx-auto px-4 py-8 relative"> {/* Added relative positioning */}
+      {/* Cursor highlight */}
+      {highlightCursor && (
+        <div ref={highlightCursorRef} className="highlight-cursor"></div>
+      )}
+      {/* Click animations container */}
+      {highlightClicks && (
+        <div ref={clickAnimationContainerRef} className="click-animation-container"></div>
+      )}
       <div className="flex flex-col lg:flex-row gap-8">
         <SettingsPanel />
 
