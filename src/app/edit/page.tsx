@@ -122,12 +122,15 @@ export default function EditPage() {
     const trimDuration = endTime - startTime;
 
     await ffmpeg.exec([
-        '-i', inputFileName,
-        '-ss', startTime.toString(),
-        '-t', trimDuration.toString(),
-        '-c', 'copy',
-        outputFileName
+      '-ss', startTime.toString(),
+      '-i', inputFileName,
+      '-t', trimDuration.toString(),
+      '-c:v', 'libx264',
+      '-c:a', 'aac',
+      '-movflags', 'faststart',
+      outputFileName
     ]);
+    
 
     const data = await ffmpeg.readFile(outputFileName);
     const blob = new Blob([data], { type: 'video/mp4' });
