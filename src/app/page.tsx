@@ -94,6 +94,48 @@ export default function Home() {
     fullScreenVideoRef.current = document.createElement('video');
   }, []);
 
+  const drawZoomedFrame = useCallback(() => {
+    if (!followMouseZoom || !fullScreenVideoRef.current || !canvasRef.current) {
+      animationFrameRef.current = undefined; // Stop loop if conditions are not met
+      return;
+    }
+
+    const video = fullScreenVideoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx || video.readyState < 2) {
+      animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
+      return;
+    }
+
+    // Smooth the mouse position
+    smoothedMousePosRef.current.x += (mousePosRef.current.x - smoothedMousePosRef.current.x) * SMOOTHING_FACTOR;
+    smoothedMousePosRef.current.y += (mousePosRef.current.y - smoothedMousePosRef.current.y) * SMOOTHING_FACTOR;
+    
+    const { videoWidth, videoHeight } = video;
+    const { width: canvasWidth, height: canvasHeight } = canvas;
+    
+    const zoomWidth = videoWidth / ZOOM_LEVEL;
+    const zoomHeight = videoHeight / ZOOM_LEVEL;
+
+    // Convert screen mouse coordinates to video coordinates
+    const mouseVideoX = (smoothedMousePosRef.current.x / window.innerWidth) * videoWidth;
+    const mouseVideoY = (smoothedMousePosRef.current.y / window.innerHeight) * videoHeight;
+
+    let sourceX = mouseVideoX - zoomWidth / 2;
+    let sourceY = mouseVideoY - zoomHeight / 2;
+
+    // Clamp the source rectangle to stay within the video bounds
+    sourceX = Math.max(0, Math.min(videoWidth - zoomWidth, sourceX));
+    sourceY = Math.max(0, Math.min(videoHeight - zoomHeight, sourceY));
+    
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.drawImage(video, sourceX, sourceY, zoomWidth, zoomHeight, 0, 0, canvasWidth, canvasHeight);
+
+    animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
+  }, [followMouseZoom]);
+
   const cleanupStreams = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -105,7 +147,10 @@ export default function Home() {
     }
     if (videoPreviewRef.current) videoPreviewRef.current.srcObject = null;
     if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = null;
-    if (fullScreenVideoRef.current) fullScreenVideoRef.current.srcObject = null;
+    if (fullScreenVideoRef.current) {
+        fullScreenVideoRef.current.srcObject = null;
+        fullScreenVideoRef.current.pause();
+    }
   }, []);
 
   // Mouse move listeners
@@ -142,54 +187,12 @@ export default function Home() {
     
     if (highlightClicks) {
       document.addEventListener("click", handleClick);
-    } else {
-      document.removeEventListener("click", handleClick);
     }
 
     return () => {
       document.removeEventListener("click", handleClick);
     };
   }, [highlightClicks]);
-
-  const drawZoomedFrame = useCallback(() => {
-    if (!followMouseZoom || !fullScreenVideoRef.current || !canvasRef.current) {
-      return;
-    }
-
-    const video = fullScreenVideoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx || video.readyState < 2) {
-      animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
-      return;
-    }
-
-    // Smooth the mouse position
-    smoothedMousePosRef.current.x += (mousePosRef.current.x - smoothedMousePosRef.current.x) * SMOOTHING_FACTOR;
-    smoothedMousePosRef.current.y += (mousePosRef.current.y - smoothedMousePosRef.current.y) * SMOOTHING_FACTOR;
-    
-    const { videoWidth, videoHeight } = video;
-    const { width: canvasWidth, height: canvasHeight } = canvas;
-    
-    const zoomWidth = canvasWidth / ZOOM_LEVEL;
-    const zoomHeight = canvasHeight / ZOOM_LEVEL;
-
-    // Convert screen mouse coordinates to video coordinates
-    const mouseVideoX = (smoothedMousePosRef.current.x / window.innerWidth) * videoWidth;
-    const mouseVideoY = (smoothedMousePosRef.current.y / window.innerHeight) * videoHeight;
-
-    let sourceX = mouseVideoX - zoomWidth / 2;
-    let sourceY = mouseVideoY - zoomHeight / 2;
-
-    // Clamp the source rectangle to stay within the video bounds
-    sourceX = Math.max(0, Math.min(videoWidth - zoomWidth, sourceX));
-    sourceY = Math.max(0, Math.min(videoHeight - zoomHeight, sourceY));
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.drawImage(video, sourceX, sourceY, zoomWidth, zoomHeight, 0, 0, canvasWidth, canvasHeight);
-
-    animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
-  }, [followMouseZoom]);
 
   const startRecording = useCallback(async () => {
     cleanupStreams();
@@ -201,7 +204,8 @@ export default function Home() {
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          width: parseInt(resolution) * (followMouseZoom ? ZOOM_LEVEL : 1), // Request higher res for zoom
+          width: parseInt(resolution),
+          height: parseInt(resolution) * (9/16),
           frameRate: parseInt(frameRate),
           cursor: followMouseZoom ? "none" : "always", // Hide system cursor if we are zooming
         },
@@ -222,12 +226,13 @@ export default function Home() {
         const canvas = canvasRef.current;
         if (!canvas) throw new Error("Canvas not found");
 
-        const parsedResolution = parseInt(resolution);
-        canvas.width = (parsedResolution === 1080) ? 1920 : (parsedResolution === 720) ? 1280 : (parsedResolution === 1440) ? 2560 : 3840;
-        canvas.height = (parsedResolution === 1080) ? 1080 : (parsedResolution === 720) ? 720 : (parsedResolution === 1440) ? 1440 : 2160;
-
         const video = fullScreenVideoRef.current;
         if (!video) throw new Error("Video element for zoom not initialized");
+
+        const {width, height} = displayStream.getVideoTracks()[0].getSettings();
+        canvas.width = width || 1920;
+        canvas.height = height || 1080;
+
         video.srcObject = displayStream;
         video.muted = true;
         await video.play();
@@ -235,27 +240,28 @@ export default function Home() {
         mousePosRef.current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         smoothedMousePosRef.current = mousePosRef.current;
 
-        drawZoomedFrame();
-
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+        }
+        animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
+        
         recordingSourceStream = canvas.captureStream(parseInt(frameRate));
         audioStream.getAudioTracks().forEach(track => recordingSourceStream.addTrack(track));
-
-        if (videoPreviewRef.current) {
-          videoPreviewRef.current.srcObject = recordingSourceStream;
-        }
 
       } else {
         recordingSourceStream = new MediaStream();
         displayStream.getVideoTracks().forEach(track => recordingSourceStream.addTrack(track));
         audioStream.getAudioTracks().forEach(track => recordingSourceStream.addTrack(track));
-        if (videoPreviewRef.current) {
+      }
+
+      if (videoPreviewRef.current) {
           videoPreviewRef.current.srcObject = recordingSourceStream;
-        }
       }
 
       mainStreamRef.current = new MediaStream([
           ...recordingSourceStream.getVideoTracks(),
-          ...audioStream.getAudioTracks()
+          ...audioStream.getAudioTracks(),
+          ...(displayStream.getAudioTracks()),
       ]);
 
       if (pipEnabled) {
@@ -288,7 +294,7 @@ export default function Home() {
       };
       
       displayStream.getVideoTracks()[0].onended = () => {
-        if (mediaRecorderRef.current?.state === "recording") {
+        if (mediaRecorderRef.current?.state === "recording" || mediaRecorderRef.current?.state === "paused") {
             stopRecording();
         }
       };
@@ -316,6 +322,10 @@ export default function Home() {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.pause();
       setStatus("paused");
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
     }
   };
 
@@ -323,6 +333,9 @@ export default function Home() {
     if (mediaRecorderRef.current?.state === "paused") {
       mediaRecorderRef.current.resume();
       setStatus("recording");
+      if (!animationFrameRef.current && followMouseZoom) {
+        animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
+      }
     }
   };
 
@@ -332,12 +345,15 @@ export default function Home() {
   
     const video = document.createElement('video');
     video.src = URL.createObjectURL(videoBlob);
+    video.muted = true;
     
     await new Promise(resolve => {
         video.onloadedmetadata = resolve;
     });
 
-    const MAX_WIDTH = 680;
+    await video.play();
+
+    const MAX_WIDTH = 480;
     const aspectRatio = video.videoWidth / video.videoHeight;
     const canvasWidth = Math.min(MAX_WIDTH, video.videoWidth);
     const canvasHeight = canvasWidth / aspectRatio;
@@ -362,35 +378,38 @@ export default function Home() {
     });
 
     const duration = video.duration;
-    const interval = 1 / 10; // 10 fps
+    const frameInterval = 1 / parseInt(frameRate, 10); // 1 / fps
 
-    for (let time = 0; time < duration; time += interval) {
-        video.currentTime = time;
-        await new Promise(resolve => {
-            const onSeeked = () => {
-                video.removeEventListener('seeked', onSeeked);
-                resolve(null);
-            };
-            video.addEventListener('seeked', onSeeked);
+    return new Promise<void>(resolvePromise => {
+        gif.on('finished', (blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ScreenVerse-recording-${new Date().toISOString()}.gif`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setIsConverting(false);
+            toast({ title: 'Success!', description: 'GIF downloaded.' });
+            video.pause();
+            resolvePromise();
         });
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        gif.addFrame(ctx, {copy: true, delay: interval * 1000});
-    }
 
-    gif.on('finished', (blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `ScreenVerse-recording-${new Date().toISOString()}.gif`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setIsConverting(false);
-        toast({ title: 'Success!', description: 'GIF downloaded.' });
+        const addFrameAtTime = async (time: number) => {
+            if (time > duration) {
+                gif.render();
+                return;
+            }
+            video.currentTime = time;
+            await new Promise(r => video.onseeked = r);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            gif.addFrame(ctx, {copy: true, delay: frameInterval * 1000});
+            addFrameAtTime(time + frameInterval);
+        };
+
+        addFrameAtTime(0);
     });
-
-    gif.render();
   };
 
 
@@ -556,9 +575,7 @@ export default function Home() {
         <div ref={highlightCursorRef} className="highlight-cursor"></div>
       )}
       {/* Click animations container */}
-      {highlightClicks && (
-        <div ref={clickAnimationContainerRef} className="click-animation-container"></div>
-      )}
+      <div ref={clickAnimationContainerRef} className="click-animation-container"></div>
       <div className="flex flex-col lg:flex-row gap-8">
         <SettingsPanel />
 
@@ -573,8 +590,8 @@ export default function Home() {
                     <p className="text-sm">Choose your settings and start recording.</p>
                   </div>
                 )}
-                {/* Canvas for zoom/follow effect, positioned behind the video preview */}
-                <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full object-contain" style={{ display: (status === 'recording' || status === 'paused') && followMouseZoom ? 'block' : 'none' }} />
+                {/* We use the canvas for the zoom effect, but it's always in the DOM to be recorded */}
+                <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full object-contain" style={{ display: 'none' }} />
                 {(status === "recording" || status === "paused") && (
                   <>
                     <video
@@ -582,7 +599,6 @@ export default function Home() {
                       autoPlay
                       muted
                       className="w-full h-full object-contain"
-                      style={{ display: followMouseZoom ? 'none' : 'block' }} // Hide if zooming
                     />
                     {pipEnabled && (
                       <video
