@@ -78,12 +78,29 @@ export default function EditPage() {
   }, [router, toast]);
 
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      const videoDuration = videoRef.current.duration;
-      setDuration(videoDuration);
-      setTrimValues([0, videoDuration]);
+  const video = videoRef.current;
+  if (video) {
+    // 如果 duration 是 Infinity，尝试 seekToEnd 再 seek 回 0
+    if (!isFinite(video.duration)) {
+      video.currentTime = 1e10;
+      video.ontimeupdate = () => {
+        video.ontimeupdate = null;
+        const actualDuration = video.duration;
+        if (isFinite(actualDuration)) {
+          setDuration(actualDuration);
+          setTrimValues([0, actualDuration]);
+          video.currentTime = 0;
+        }
+      };
+    } else {
+      const actualDuration = video.duration;
+      setDuration(actualDuration);
+      setTrimValues([0, actualDuration]);
     }
-  };
+  }
+};
+
+  
   
   const handleTrim = async () => {
     if (!ffmpegRef.current || !videoUrl || !ffmpegRef.current.loaded) {
@@ -139,18 +156,26 @@ export default function EditPage() {
             />
           </div>
           <div className="space-y-6">
+            <Label htmlFor="trim">Trim Video</Label>
             <div className="space-y-4">
-              <Label htmlFor="trim">Trim Video</Label>
-              <Slider
-                id="trim"
-                min={0}
-                max={duration}
-                step={0.1}
-                value={trimValues}
-                onValueChange={setTrimValues}
-                className="w-full"
-                disabled={isProcessing}
-              />
+              <Label>Start Time</Label>
+                <Slider
+                  min={0}
+                  max={duration}
+                  step={0.1}
+                  value={[trimValues[0]]}
+                  onValueChange={(val) => setTrimValues([val[0], trimValues[1]])}
+                  disabled={isProcessing}
+                />
+                <Label>End Time</Label>
+                <Slider
+                  min={0}
+                  max={duration}
+                  step={0.1}
+                  value={[trimValues[1]]}
+                  onValueChange={(val) => setTrimValues([trimValues[0], val[0]])}
+                  disabled={isProcessing}
+                />
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Start: {trimValues[0].toFixed(1)}s</span>
                 <span>End: {trimValues[1].toFixed(1)}s</span>
