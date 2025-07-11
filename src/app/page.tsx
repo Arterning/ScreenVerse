@@ -199,20 +199,19 @@ export default function Home() {
     recordedChunksRef.current = [];
     videoBlobRef.current = null;
     setVideoUrl(null);
-
+  
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width: parseInt(resolution),
           height: parseInt(resolution) * (9/16),
           frameRate: parseInt(frameRate),
-          cursor: followMouseZoom ? "none" : "always", // Hide system cursor if we are zooming
         },
         audio: includeSystemAudio,
       });
-
+  
       let combinedStream = new MediaStream();
-
+  
       // Handle Audio
       const audioTracks: MediaStreamTrack[] = [];
       if (includeSystemAudio) {
@@ -223,34 +222,40 @@ export default function Home() {
         micStream.getAudioTracks().forEach(track => audioTracks.push(track));
       }
       audioTracks.forEach(track => combinedStream.addTrack(track));
-
+  
       // Handle Video
       if (followMouseZoom) {
         const canvas = canvasRef.current;
         if (!canvas) throw new Error("Canvas not found");
-
+  
         const video = fullScreenVideoRef.current;
         if (!video) throw new Error("Video element for zoom not initialized");
-
+  
         const {width, height} = displayStream.getVideoTracks()[0].getSettings();
         canvas.width = width || 1920;
         canvas.height = height || 1080;
         canvas.style.display = 'block';
-
+  
         video.srcObject = displayStream;
         video.muted = true;
         await video.play();
-
+  
         mousePosRef.current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         smoothedMousePosRef.current = mousePosRef.current;
-
+  
         if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
+          cancelAnimationFrame(animationFrameRef.current);
         }
         animationFrameRef.current = requestAnimationFrame(drawZoomedFrame);
         
+        // 关键修改：确保canvas有内容后再开始捕获
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const canvasStream = canvas.captureStream(parseInt(frameRate));
         canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
+        
+        // 确保canvas在录制期间保持可见
+        canvas.style.display = 'block';
       } else {
         displayStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
       }
@@ -258,9 +263,9 @@ export default function Home() {
       if (videoPreviewRef.current && !followMouseZoom) {
           videoPreviewRef.current.srcObject = combinedStream;
       }
-
+  
       mainStreamRef.current = combinedStream;
-
+  
       if (pipEnabled) {
         const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (cameraPreviewRef.current) {
@@ -268,13 +273,17 @@ export default function Home() {
         }
       }
       
-      const mimeType = exportFormat === "video/mp4" && MediaRecorder.isTypeSupported("video/mp4") 
-        ? "video/mp4" 
-        : "video/webm";
+      // 修改MediaRecorder创建部分
+      const options = {
+        mimeType: exportFormat === "video/mp4" && MediaRecorder.isTypeSupported("video/mp4") 
+          ? "video/mp4" 
+          : "video/webm",
+        videoBitsPerSecond: 2500000 // 添加比特率设置
+      };
       
-      const recorder = new MediaRecorder(mainStreamRef.current, { mimeType });
+      const recorder = new MediaRecorder(mainStreamRef.current, options);
       mediaRecorderRef.current = recorder;
-
+  
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
