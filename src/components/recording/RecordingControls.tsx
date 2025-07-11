@@ -6,7 +6,10 @@ import {
   Pause,
   Play,
   StopCircle,
+  Scissors,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,15 +51,34 @@ export default function RecordingControls({
   settings,
   setSettings,
 }: RecordingControlsProps) {
+  const router = useRouter();
+  
   const setExportFormat = (value: string) => {
     setSettings((prev) => ({ ...prev, exportFormat: value as ExportFormat }));
   };
 
   const handleNewRecording = () => {
-    // This is a bit of a hack, but it resets the state in useRecording hook.
-    // A better approach would be a dedicated reset function.
     window.location.reload();
   }
+
+  const handleEdit = async () => {
+    if (videoUrl) {
+      // Fetch the blob from the URL
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      
+      // We need to store it in a way the /edit page can access it.
+      // localStorage is a good option for blobs, but it only stores strings.
+      // A common trick is to use FileReader to convert the Blob to a Base64 data URL.
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        localStorage.setItem('recordedVideoUrl', dataUrl);
+        router.push('/edit');
+      };
+      reader.readAsDataURL(blob);
+    }
+  };
 
   return (
     <>
@@ -88,7 +110,7 @@ export default function RecordingControls({
           <CardHeader>
             <CardTitle>Export Your Recording</CardTitle>
             <CardDescription>
-              Download your video or start a new recording.
+              Download, edit your video, or start a new recording.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
@@ -122,6 +144,14 @@ export default function RecordingControls({
               >
                 <Download className="mr-2 h-5 w-5" /> 
                 {status === 'converting' ? 'Converting...' : 'Download'}
+              </Button>
+               <Button
+                size="lg"
+                variant="secondary"
+                onClick={handleEdit}
+                className="flex-1 sm:flex-none"
+              >
+                <Scissors className="mr-2 h-5 w-5" /> Edit
               </Button>
               <Button
                 size="lg"

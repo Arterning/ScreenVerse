@@ -116,7 +116,7 @@ export function useRecording() {
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          width: parseInt(settings.resolution),
+          width: { ideal: parseInt(settings.resolution, 10) },
           frameRate: parseInt(settings.frameRate),
         },
         audio: settings.includeSystemAudio,
@@ -125,12 +125,12 @@ export function useRecording() {
       let streamToRecord: MediaStream;
       const audioTracks: MediaStreamTrack[] = [];
   
-      if (settings.includeSystemAudio) {
-        displayStream.getAudioTracks().forEach(track => audioTracks.push(track));
+      if (settings.includeSystemAudio && displayStream.getAudioTracks().length > 0) {
+        audioTracks.push(...displayStream.getAudioTracks());
       }
       if (settings.includeMic) {
         const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micStream.getAudioTracks().forEach(track => audioTracks.push(track));
+        audioTracks.push(...micStream.getAudioTracks());
       }
   
       if (settings.followMouse) {
@@ -146,8 +146,13 @@ export function useRecording() {
   
         const canvas = canvasRef.current;
         if (!canvas) throw new Error("Canvas not found");
-        streamToRecord = canvas.captureStream(parseInt(settings.frameRate));
-        audioTracks.forEach(track => streamToRecord.addTrack(track));
+        
+        const canvasStream = canvas.captureStream(parseInt(settings.frameRate, 10));
+        streamToRecord = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            ...audioTracks
+        ]);
+
       } else {
         if (videoPreviewRef.current) {
             videoPreviewRef.current.srcObject = displayStream;
@@ -156,12 +161,11 @@ export function useRecording() {
             const context = canvasRef.current.getContext('2d');
             context?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
         }
-        streamToRecord = displayStream;
-        audioTracks.forEach(track => {
-            if (streamToRecord.getAudioTracks().length === 0) {
-                streamToRecord.addTrack(track)
-            }
-        });
+        
+        streamToRecord = new MediaStream([
+            ...displayStream.getVideoTracks(),
+            ...audioTracks
+        ]);
       }
   
       if (settings.pipEnabled) {
@@ -208,7 +212,7 @@ export function useRecording() {
       };
   
       displayStream.getVideoTracks()[0].onended = () => {
-        if (mediaRecorderRef.current?.state === "recording") {
+        if (mediaRecorderRef.current?.state === "recording" || mediaRecorderRef.current?.state === "paused") {
           stopRecording();
         }
       };
@@ -289,7 +293,10 @@ export function useRecording() {
     const interval = 1 / Math.min(parseInt(settings.frameRate, 10), 15);
   
     video.currentTime = 0;
-    await new Promise(resolve => video.onseeked = resolve);
+    await new Promise(resolve => {
+        if(video.seekable.length > 0) video.onseeked = resolve;
+        else resolve(null);
+    });
 
     while (currentTime < duration) {
         if (!context) break;
@@ -297,7 +304,10 @@ export function useRecording() {
         gif.addFrame(context, { copy: true, delay: interval * 1000 });
         currentTime += interval;
         video.currentTime = currentTime;
-        await new Promise(resolve => video.onseeked = resolve);
+        await new Promise(resolve => {
+            if(video.seekable.length > 0) video.onseeked = resolve;
+            else resolve(null);
+        });
     }
   
     gif.on("finished", function (blob) {
@@ -332,7 +342,7 @@ export function useRecording() {
       const extension = settings.exportFormat.split("/")[1].split(";")[0];
       a.download = `ScreenVerse-recording-${new Date().toISOString()}.${extension}`;
       document.body.appendChild(a);
-a.click();
+      a.click();
       document.body.removeChild(a);
     }
   };

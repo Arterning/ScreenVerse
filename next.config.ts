@@ -18,6 +18,21 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Required for ffmpeg.wasm to work
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+    });
+
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -32,7 +32,7 @@ export default function Home() {
         <SettingsPanel
           settings={settings}
           setSettings={setSettings}
-          isRecording={status !== "idle"}
+          isRecording={status === 'recording' || status === 'paused'}
         />
         <div className="flex-1 w-full">
           <VideoPreview
