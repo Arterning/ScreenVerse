@@ -272,12 +272,14 @@ export default function Home() {
           cameraPreviewRef.current.srcObject = cameraStream;
         }
       }
+
+      const mimeType = exportFormat === "video/mp4" && MediaRecorder.isTypeSupported("video/mp4") 
+        ? "video/mp4" 
+        : "video/webm";
       
       // 修改MediaRecorder创建部分
       const options = {
-        mimeType: exportFormat === "video/mp4" && MediaRecorder.isTypeSupported("video/mp4") 
-          ? "video/mp4" 
-          : "video/webm",
+        mimeType,
         videoBitsPerSecond: 2500000 // 添加比特率设置
       };
       
