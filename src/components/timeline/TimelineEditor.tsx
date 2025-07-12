@@ -6,6 +6,9 @@ export type TimelineRegion = {
   start: number;
   end: number;
   selected?: boolean;
+  // Zoom 区域特有的属性
+  zoomCenter?: { x: number; y: number }; // 鼠标坐标（相对于视频的百分比）
+  zoomSize?: { width: number; height: number }; // 放大区域大小（像素）
 };
 
 interface TimelineEditorProps {

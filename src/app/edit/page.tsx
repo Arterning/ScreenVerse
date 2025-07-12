@@ -42,6 +42,10 @@ export default function EditPage() {
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [background, setBackground] = useState('none');
   const [customBackgroundFile, setCustomBackgroundFile] = useState<File | null>(null);
+  
+  // Zoom 设置状态
+  const [isSettingZoomPosition, setIsSettingZoomPosition] = useState(false);
+  const [pendingZoomRegion, setPendingZoomRegion] = useState<Partial<TimelineRegion> | null>(null);
 
   // 背景上传处理
   const handleBackgroundUpload = (file: File) => {
@@ -93,7 +97,7 @@ export default function EditPage() {
   const currentZoomRegion = getCurrentZoomRegion();
   const videoStyle = currentZoomRegion ? {
     transform: 'scale(1.5)',
-    transformOrigin: 'center center',
+    transformOrigin: `${currentZoomRegion.zoomCenter?.x || 50}% ${currentZoomRegion.zoomCenter?.y || 50}%`,
     transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   } : {
     transform: 'scale(1)',
@@ -103,6 +107,55 @@ export default function EditPage() {
   // 视频播放状态变化处理
   const handlePlay = () => setIsPlaying(true);
   const handlePause = () => setIsPlaying(false);
+  
+  // 视频点击事件处理
+  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    console.log('Video clicked!', { isSettingZoomPosition, pendingZoomRegion });
+    
+    if (!isSettingZoomPosition || !pendingZoomRegion) {
+      console.log('Not in zoom setting mode or no pending region');
+      return;
+    }
+    
+    const videoElement = e.currentTarget;
+    const rect = videoElement.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    console.log('Click coordinates:', { x, y, clientX: e.clientX, clientY: e.clientY, rect });
+    
+    // 创建完整的 Zoom 区域
+    const newRegion: TimelineRegion = {
+      ...pendingZoomRegion,
+      zoomCenter: { x, y },
+    } as TimelineRegion;
+    
+    // 添加到区域列表
+    setHistory(h => [...h, regions]);
+    setRegions([...regions, newRegion]);
+    setSelectedRegionId(newRegion.id);
+    setRedoStack([]);
+    
+    // 退出设置模式
+    setIsSettingZoomPosition(false);
+    setPendingZoomRegion(null);
+    
+    // 显示成功提示
+    toast({
+      title: '放大区域已添加',
+      description: `放大中心点设置在 (${Math.round(x)}%, ${Math.round(y)}%)，可以继续播放视频查看效果`,
+    });
+  };
+  
+  // 取消设置 Zoom 位置
+  const handleCancelZoomPosition = () => {
+    setIsSettingZoomPosition(false);
+    setPendingZoomRegion(null);
+    toast({
+      title: '已取消',
+      description: '放大位置设置已取消，可以继续播放视频',
+    });
+  };
 
   // 工具栏操作
   const handleAddZoom = () => {
@@ -110,16 +163,38 @@ export default function EditPage() {
     const len = duration / 10;
     const start = Math.max(0, currentTime - len / 2);
     const end = Math.min(duration, start + len);
-    const newRegion: TimelineRegion = {
+    
+    console.log('Adding zoom region:', { start, end, currentTime, duration });
+    
+    // 暂停视频播放
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+    
+    // 进入设置 Zoom 位置模式
+    setIsSettingZoomPosition(true);
+    setPendingZoomRegion({
       id: `zoom-${Date.now()}`,
       type: 'zoom',
       start,
       end,
-    };
-    setHistory(h => [...h, regions]);
-    setRegions([...regions, newRegion]);
-    setSelectedRegionId(newRegion.id);
-    setRedoStack([]);
+      zoomSize: { width: 200, height: 200 }, // 固定大小 200x200
+    });
+    
+    console.log('Set zoom position mode:', { isSettingZoomPosition: true, pendingZoomRegion: {
+      id: `zoom-${Date.now()}`,
+      type: 'zoom',
+      start,
+      end,
+      zoomSize: { width: 200, height: 200 },
+    }});
+    
+    // 显示提示
+    toast({
+      title: '设置放大位置',
+      description: '视频已暂停，点击视频上的任意位置来设置放大中心点',
+    });
   };
   const handleAddTrim = () => {
     if (!duration) return;
@@ -386,49 +461,89 @@ export default function EditPage() {
             await ffmpeg.writeFile('background.jpg', new Uint8Array(bgBuffer));
             hasBackground = true;
             setProgress(20);
+            console.log('Background image loaded successfully');
           } catch (error) {
             console.error('Failed to load background image:', error);
+            // 如果背景图片加载失败，继续处理但不使用背景
+            hasBackground = false;
           }
         }
       }
+      
+      console.log('Background setting:', background);
+      console.log('Has background:', hasBackground);
       
       // 构建滤镜链 - 修复 Zoom 和背景处理
       let filterChain = '';
       let useComplexFilter = false;
       
-      // 构建 Zoom 效果滤镜 - 暂时禁用，先确保 Trim 效果正常
+      // 构建 Zoom 效果滤镜 - 支持多个 Zoom 区间
       let zoomFilter = '';
-      // if (zoomRegions.length > 0) {
-      //   // 使用简单的 zoom 效果
-      //   const zoom = zoomRegions[0];
-      //   const startTime = Math.round(zoom.start * 100) / 100;
-      //   const endTime = Math.round(zoom.end * 100) / 100;
-      //   // 使用更简单的 zoom 效果，修复语法
-      //   zoomFilter = `zoompan=z='if(between(t,${startTime},${endTime}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
-      // }
+      if (zoomRegions.length > 0) {
+        // 使用 split+scale+crop+overlay 方案支持多个 Zoom 区间
+        const scaleExpr = 1.5; // 放大倍数
+        
+        if (zoomRegions.length === 1) {
+          // 单个 Zoom 区域的简化版本
+          const zoom = zoomRegions[0];
+          const startTime = Math.round(zoom.start * 100) / 100;
+          const endTime = Math.round(zoom.end * 100) / 100;
+          
+          zoomFilter = `[0:v]split=2[base][zoomed];` +
+            `[zoomed]scale=iw*${scaleExpr}:ih*${scaleExpr},crop=iw:ih:(in_w-out_w)/2:(in_h-out_h)/2[zoomedout];` +
+            `[base][zoomedout]overlay=shortest=1:enable='between(t,${startTime},${endTime})'`;
+        } else {
+          // 多个 Zoom 区域的完整版本
+          let filterParts = [`[0:v]split=${zoomRegions.length + 1}[base]`];
+          
+          // 为每个 Zoom 区域创建处理链
+          zoomRegions.forEach((zoom, index) => {
+            const startTime = Math.round(zoom.start * 100) / 100;
+            const endTime = Math.round(zoom.end * 100) / 100;
+            const zoomIndex = index + 1;
+            
+            // 添加缩放和裁剪
+            filterParts.push(`[base]scale=iw*${scaleExpr}:ih*${scaleExpr},crop=iw:ih:(in_w-out_w)/2:(in_h-out_h)/2[zoom${zoomIndex}]`);
+          });
+          
+          // 构建 overlay 链
+          let overlayChain = '[base]';
+          zoomRegions.forEach((zoom, index) => {
+            const startTime = Math.round(zoom.start * 100) / 100;
+            const endTime = Math.round(zoom.end * 100) / 100;
+            const zoomIndex = index + 1;
+            
+            overlayChain += `[zoom${zoomIndex}]overlay=shortest=1:enable='between(t,${startTime},${endTime})'`;
+            if (index < zoomRegions.length - 1) {
+              overlayChain += '[tmp' + (index + 1) + '];[tmp' + (index + 1) + ']';
+            }
+          });
+          
+          filterParts.push(overlayChain);
+          zoomFilter = filterParts.join(';');
+        }
+        
+        console.log('Zoom filter chain:', zoomFilter);
+      }
       
-      if (hasBackground) {
-        // 当有背景图片时，需要使用复杂滤镜
+      // 构建滤镜链 - 支持 Zoom 效果
+      if (zoomRegions.length > 0) {
+        // 有 Zoom 效果时使用复杂滤镜
         useComplexFilter = true;
-        filterChain = `[0:v]${scaleFilter}`;
-        if (zoomFilter) {
-          filterChain += `,${zoomFilter}`;
-        }
-        filterChain += `[v];[1:v]scale=1920:1080[bg];[bg][v]overlay=0:0`;
+        filterChain = zoomFilter;
+        console.log('Complex filter chain (with zoom):', filterChain);
       } else {
-        // 没有背景图片时的处理
+        // 没有 Zoom 效果时的简单处理
         filterChain = scaleFilter;
-        if (zoomFilter) {
-          filterChain += `,${zoomFilter}`;
-        }
         if (backgroundFilter) {
           filterChain += `,${backgroundFilter}`;
         }
+        console.log('Simple filter chain:', filterChain);
       }
       
       setProgress(30);
       
-      // 修复 Trim 逻辑 - 分别处理每个 segment
+      // 修复 Trim 逻辑 - 分别处理每个 segment，添加内存优化
       if (segments.length > 1) {
         // 多个分段，需要分别处理然后合并
         const segmentFiles = [];
@@ -443,17 +558,19 @@ export default function EditPage() {
             '-i', inputFileName,
             '-t', (segment.end - segment.start).toString(),
             '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
             '-c:a', 'aac',
+            '-b:a', '128k',
             segmentFileName
           ];
           
-          if (hasBackground) {
-            segmentArgs.splice(2, 0, '-i', 'background.jpg');
-            if (filterChain) {
+          if (filterChain) {
+            if (useComplexFilter) {
               segmentArgs.push('-filter_complex', filterChain);
+            } else {
+              segmentArgs.push('-vf', filterChain);
             }
-          } else if (filterChain) {
-            segmentArgs.push('-vf', filterChain);
           }
           
           console.log(`Segment ${i} args:`, segmentArgs);
@@ -488,10 +605,6 @@ export default function EditPage() {
         execArgs.push('-ss', segment.start.toString());
         execArgs.push('-t', (segment.end - segment.start).toString());
         
-        if (hasBackground) {
-          execArgs.push('-i', 'background.jpg');
-        }
-        
         if (filterChain) {
           if (useComplexFilter) {
             execArgs.push('-filter_complex', filterChain);
@@ -502,7 +615,10 @@ export default function EditPage() {
         
         execArgs.push(
           '-c:v', 'libx264',
+          '-preset', 'fast',
+          '-crf', '23',
           '-c:a', 'aac',
+          '-b:a', '128k',
           '-movflags', 'faststart',
           outputFileName
         );
@@ -515,21 +631,30 @@ export default function EditPage() {
       
       setProgress(90);
       
-      const data = await ffmpeg.readFile(outputFileName);
-      const blob = new Blob([data], { type: 'video/mp4' });
-      const url = URL.createObjectURL(blob);
-      
-      // 创建下载链接
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `edited-video-${Date.now()}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      setProgress(100);
-      setIsProcessing(false);
-      toast({ title: 'Export complete!', description: 'Your video has been exported with all effects applied.' });
+      try {
+        const data = await ffmpeg.readFile(outputFileName);
+        const blob = new Blob([data], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        
+        // 创建下载链接
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `edited-video-${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // 清理内存
+        URL.revokeObjectURL(url);
+        
+        setProgress(100);
+        setIsProcessing(false);
+        toast({ title: 'Export complete!', description: 'Your video has been exported with all effects applied.' });
+      } catch (readError) {
+        console.error('Failed to read output file:', readError);
+        setIsProcessing(false);
+        toast({ title: 'Export failed', description: 'Failed to read output file.', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Export error:', error);
       setIsProcessing(false);
@@ -544,17 +669,29 @@ export default function EditPage() {
         <CardContent className="grid md:grid-cols-5 gap-4 p-4">
           <div className="md:col-span-4">
             <div className="overflow-hidden rounded-lg">
-              <video
-                ref={videoRef}
-                src={editedVideoUrl || videoUrl || undefined}
-                controls
-                className="w-full aspect-video rounded-lg bg-muted"
-                style={videoStyle}
-                onLoadedMetadata={handleLoadedMetadata}
-                onTimeUpdate={handleTimeUpdate}
-                onPlay={handlePlay}
-                onPause={handlePause}
-              />
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  src={editedVideoUrl || videoUrl || undefined}
+                  controls
+                  className={`w-full aspect-video rounded-lg bg-muted ${
+                    isSettingZoomPosition ? 'cursor-crosshair' : ''
+                  }`}
+                  style={videoStyle}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onTimeUpdate={handleTimeUpdate}
+                  onPlay={handlePlay}
+                  onPause={handlePause}
+                  onClick={handleVideoClick}
+                />
+                {isSettingZoomPosition && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg pointer-events-none">
+                    <div className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+                      点击视频设置放大中心点
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             {/* 时间轴和工具栏 */}
             <TimelineToolbar
@@ -565,8 +702,10 @@ export default function EditPage() {
               onRedo={handleRedo}
               onReset={handleReset}
               onPlayPause={handlePlayPause}
+              onCancelZoomPosition={handleCancelZoomPosition}
               isPlaying={isPlaying}
               selectedId={selectedRegionId}
+              isSettingZoomPosition={isSettingZoomPosition}
             />
             <TimelineEditor
               duration={duration}
