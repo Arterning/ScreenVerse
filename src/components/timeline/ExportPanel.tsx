@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { Download, Upload } from 'lucide-react';
 
 // 预置背景图片
@@ -53,6 +54,7 @@ const PRESET_BACKGROUNDS = [
 interface ExportPanelProps {
   onExport: () => void;
   isProcessing: boolean;
+  progress?: number;
   aspectRatio: string;
   onAspectRatioChange: (value: string) => void;
   background: string;
@@ -63,6 +65,7 @@ interface ExportPanelProps {
 export const ExportPanel: React.FC<ExportPanelProps> = ({
   onExport,
   isProcessing,
+  progress = 0,
   aspectRatio,
   onAspectRatioChange,
   background,
@@ -161,6 +164,17 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
             </div>
           )}
         </div>
+
+        {/* Progress Bar */}
+        {isProcessing && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Processing...</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="w-full" />
+          </div>
+        )}
 
         {/* Export Button */}
         <Button 

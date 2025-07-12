@@ -174,7 +174,10 @@ export default function EditPage() {
       console.log(message);
     });
     ffmpeg.on('progress', ({ progress, time }) => {
-      setProgress(Math.round(progress * 100));
+      // 只在导出过程中更新进度，避免与手动设置的进度冲突
+      if (isProcessing) {
+        setProgress(Math.round(progress * 100));
+      }
     });
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
     await ffmpeg.load({
@@ -296,153 +299,205 @@ export default function EditPage() {
     const inputFileName = 'input.webm';
     const outputFileName = 'exported.mp4';
     
-    await ffmpeg.writeFile(inputFileName, await fetchFile(videoUrl));
+    try {
+      await ffmpeg.writeFile(inputFileName, await fetchFile(videoUrl));
+      setProgress(10);
 
-    // 构建 FFmpeg 命令
-    const zoomRegions = regions.filter(r => r.type === 'zoom');
-    const trimRegions = regions.filter(r => r.type === 'trim');
-    
-    let ffmpegArgs = ['-i', inputFileName];
-    
-    // 处理 Trim 区域 - 构建分段
-    let segments = [];
-    if (trimRegions.length > 0) {
-      // 按时间排序
-      trimRegions.sort((a, b) => a.start - b.start);
+      // 构建 FFmpeg 命令
+      const zoomRegions = regions.filter(r => r.type === 'zoom');
+      const trimRegions = regions.filter(r => r.type === 'trim');
       
-      // 构建分段列表（排除 Trim 区域）
-      let lastEnd = 0;
-      for (const trim of trimRegions) {
-        if (trim.start > lastEnd) {
-          segments.push({ start: lastEnd, end: trim.start });
-        }
-        lastEnd = trim.end;
-      }
-      
-      if (lastEnd < duration) {
-        segments.push({ start: lastEnd, end: duration });
-      }
-    } else {
-      // 没有 Trim 区域，整个视频作为一个分段
-      segments = [{ start: 0, end: duration }];
-    }
-    
-    // 处理 Aspect ratio
-    let scaleFilter = '';
-    switch (aspectRatio) {
-      case '16:9':
-        scaleFilter = 'scale=1920:1080';
-        break;
-      case '4:3':
-        scaleFilter = 'scale=1440:1080';
-        break;
-      case '1:1':
-        scaleFilter = 'scale=1080:1080';
-        break;
-      case '9:16':
-        scaleFilter = 'scale=1080:1920';
-        break;
-      default:
-        scaleFilter = 'scale=1920:1080';
-    }
-    
-    // 处理背景
-    let backgroundFilter = '';
-    if (background === 'black') {
-      backgroundFilter = 'pad=iw:ih:0:0:black';
-    } else if (background === 'white') {
-      backgroundFilter = 'pad=iw:ih:0:0:white';
-    } else if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
-      // 预置背景图片处理
-      const presetBackgrounds = {
-        'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
-        'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop',
-        'neon-purple': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop',
-        'matrix-green': 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop',
-        'futuristic-orange': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
-      };
-      
-      const bgUrl = presetBackgrounds[background as keyof typeof presetBackgrounds];
-      if (bgUrl) {
-        // 下载背景图片并添加到 FFmpeg
-        try {
-          const bgResponse = await fetch(bgUrl);
-          const bgBlob = await bgResponse.blob();
-          const bgBuffer = await bgBlob.arrayBuffer();
-          await ffmpeg.writeFile('background.jpg', new Uint8Array(bgBuffer));
-          backgroundFilter = '[0:v][1:v]overlay=0:0';
-          ffmpegArgs = ['-i', inputFileName, '-i', 'background.jpg', ...ffmpegArgs.slice(1)];
-        } catch (error) {
-          console.error('Failed to load background image:', error);
-        }
-      }
-    }
-    
-    // 构建复杂的滤镜链
-    let filterChain = scaleFilter;
-    if (backgroundFilter) {
-      filterChain += `,${backgroundFilter}`;
-    }
-    
-    // 如果有 Zoom 区域，添加 Zoom 效果
-    if (zoomRegions.length > 0) {
-      // 更精确的 Zoom 效果 - 在指定时间段内放大
-      const zoomFilter = zoomRegions.map(zoom => {
-        const startFrame = Math.floor(zoom.start * 30); // 假设30fps
-        const endFrame = Math.floor(zoom.end * 30);
-        return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
-      }).join(',');
-      filterChain += `,${zoomFilter}`;
-    }
-    
-    if (filterChain) {
-      ffmpegArgs.push('-vf', filterChain);
-    }
-    
-    // 如果有多个分段，需要合并
-    if (segments.length > 1) {
-      // 创建分段文件
-      const segmentFiles = [];
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        const segmentFileName = `segment_${i}.mp4`;
+      // 处理 Trim 区域 - 构建分段
+      let segments = [];
+      if (trimRegions.length > 0) {
+        // 按时间排序
+        trimRegions.sort((a, b) => a.start - b.start);
         
+        // 构建分段列表（排除 Trim 区域）
+        let lastEnd = 0;
+        for (const trim of trimRegions) {
+          if (trim.start > lastEnd) {
+            segments.push({ start: lastEnd, end: trim.start });
+          }
+          lastEnd = trim.end;
+        }
+        
+        if (lastEnd < duration) {
+          segments.push({ start: lastEnd, end: duration });
+        }
+      } else {
+        // 没有 Trim 区域，整个视频作为一个分段
+        segments = [{ start: 0, end: duration }];
+      }
+      
+      // 处理 Aspect ratio
+      let scaleFilter = '';
+      switch (aspectRatio) {
+        case '16:9':
+          scaleFilter = 'scale=1920:1080';
+          break;
+        case '4:3':
+          scaleFilter = 'scale=1440:1080';
+          break;
+        case '1:1':
+          scaleFilter = 'scale=1080:1080';
+          break;
+        case '9:16':
+          scaleFilter = 'scale=1080:1920';
+          break;
+        default:
+          scaleFilter = 'scale=1920:1080';
+      }
+      
+      // 处理背景
+      let hasBackground = false;
+      let backgroundFilter = '';
+      
+      if (background === 'black') {
+        backgroundFilter = 'pad=iw:ih:0:0:black';
+      } else if (background === 'white') {
+        backgroundFilter = 'pad=iw:ih:0:0:white';
+      } else if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
+        // 预置背景图片处理
+        const presetBackgrounds = {
+          'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
+          'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop',
+          'neon-purple': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop',
+          'matrix-green': 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop',
+          'futuristic-orange': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
+        };
+        
+        const bgUrl = presetBackgrounds[background as keyof typeof presetBackgrounds];
+        if (bgUrl) {
+          try {
+            const bgResponse = await fetch(bgUrl);
+            const bgBlob = await bgResponse.blob();
+            const bgBuffer = await bgBlob.arrayBuffer();
+            await ffmpeg.writeFile('background.jpg', new Uint8Array(bgBuffer));
+            hasBackground = true;
+            setProgress(20);
+          } catch (error) {
+            console.error('Failed to load background image:', error);
+          }
+        }
+      }
+      
+      // 构建滤镜链 - 修复背景图片处理
+      let filterChain = '';
+      
+      if (hasBackground) {
+        // 当有背景图片时，需要分别处理视频和背景
+        filterChain = `[0:v]${scaleFilter}`;
+        
+        // 如果有 Zoom 区域，添加 Zoom 效果
+        if (zoomRegions.length > 0) {
+          const zoomFilter = zoomRegions.map(zoom => {
+            const startFrame = Math.floor(zoom.start * 30);
+            const endFrame = Math.floor(zoom.end * 30);
+            return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
+          }).join(',');
+          filterChain += `,${zoomFilter}`;
+        }
+        
+        // 添加背景合成
+        filterChain += `[v];[1:v]scale=1920:1080[bg];[bg][v]overlay=0:0`;
+      } else {
+        // 没有背景图片时的处理
+        filterChain = scaleFilter;
+        
+        // 如果有 Zoom 区域，添加 Zoom 效果
+        if (zoomRegions.length > 0) {
+          const zoomFilter = zoomRegions.map(zoom => {
+            const startFrame = Math.floor(zoom.start * 30);
+            const endFrame = Math.floor(zoom.end * 30);
+            return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
+          }).join(',');
+          filterChain += `,${zoomFilter}`;
+        }
+        
+        if (backgroundFilter) {
+          filterChain += `,${backgroundFilter}`;
+        }
+      }
+      
+      setProgress(30);
+      
+      // 如果有多个分段，需要合并
+      if (segments.length > 1) {
+        // 创建分段文件
+        const segmentFiles = [];
+        const totalSegments = segments.length;
+        
+        for (let i = 0; i < segments.length; i++) {
+          const segment = segments[i];
+          const segmentFileName = `segment_${i}.mp4`;
+          
+          const segmentArgs = [
+            '-ss', segment.start.toString(),
+            '-i', inputFileName,
+            '-t', (segment.end - segment.start).toString(),
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            segmentFileName
+          ];
+          
+          if (hasBackground) {
+            segmentArgs.splice(2, 0, '-i', 'background.jpg');
+            if (filterChain) {
+              segmentArgs.push('-vf', filterChain);
+            }
+          } else if (filterChain) {
+            segmentArgs.push('-vf', filterChain);
+          }
+          
+          await ffmpeg.exec(segmentArgs);
+          segmentFiles.push(segmentFileName);
+          
+          // 更新进度
+          const segmentProgress = 30 + (i + 1) * (50 / totalSegments);
+          setProgress(Math.round(segmentProgress));
+        }
+        
+        // 创建文件列表
+        const fileList = segmentFiles.map(f => `file '${f}'`).join('\n');
+        await ffmpeg.writeFile('filelist.txt', fileList);
+        
+        setProgress(80);
+        
+        // 合并分段
         await ffmpeg.exec([
-          '-ss', segment.start.toString(),
-          '-i', inputFileName,
-          '-t', (segment.end - segment.start).toString(),
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'filelist.txt',
+          '-c', 'copy',
+          outputFileName
+        ]);
+      } else {
+        // 单个分段，直接处理
+        const execArgs = ['-i', inputFileName];
+        
+        if (hasBackground) {
+          execArgs.push('-i', 'background.jpg');
+        }
+        
+        if (filterChain) {
+          execArgs.push('-vf', filterChain);
+        }
+        
+        execArgs.push(
           '-c:v', 'libx264',
           '-c:a', 'aac',
-          segmentFileName
-        ]);
+          '-movflags', 'faststart',
+          outputFileName
+        );
         
-        segmentFiles.push(segmentFileName);
+        setProgress(50);
+        await ffmpeg.exec(execArgs);
+        setProgress(80);
       }
       
-      // 创建文件列表
-      const fileList = segmentFiles.map(f => `file '${f}'`).join('\n');
-      await ffmpeg.writeFile('filelist.txt', fileList);
+      setProgress(90);
       
-      // 合并分段
-      await ffmpeg.exec([
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', 'filelist.txt',
-        '-c', 'copy',
-        outputFileName
-      ]);
-    } else {
-      // 单个分段，直接处理
-      await ffmpeg.exec([
-        ...ffmpegArgs,
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-movflags', 'faststart',
-        outputFileName
-      ]);
-    }
-    
-    try {
       const data = await ffmpeg.readFile(outputFileName);
       const blob = new Blob([data], { type: 'video/mp4' });
       const url = URL.createObjectURL(blob);
@@ -455,6 +510,7 @@ export default function EditPage() {
       a.click();
       document.body.removeChild(a);
       
+      setProgress(100);
       setIsProcessing(false);
       toast({ title: 'Export complete!', description: 'Your video has been exported with all effects applied.' });
     } catch (error) {
@@ -509,6 +565,7 @@ export default function EditPage() {
             <ExportPanel
               onExport={handleExport}
               isProcessing={isProcessing}
+              progress={progress}
               aspectRatio={aspectRatio}
               onAspectRatioChange={setAspectRatio}
               background={background}
