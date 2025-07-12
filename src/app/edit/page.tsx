@@ -313,7 +313,7 @@ export default function EditPage() {
         // 按时间排序
         trimRegions.sort((a, b) => a.start - b.start);
         
-        // 构建分段列表（排除 Trim 区域）
+        // 构建分段列表（保留非 Trim 区域）
         let lastEnd = 0;
         for (const trim of trimRegions) {
           if (trim.start > lastEnd) {
@@ -325,10 +325,20 @@ export default function EditPage() {
         if (lastEnd < duration) {
           segments.push({ start: lastEnd, end: duration });
         }
+        
+        // 如果没有有效分段，使用整个视频
+        if (segments.length === 0) {
+          segments = [{ start: 0, end: duration }];
+        }
       } else {
         // 没有 Trim 区域，整个视频作为一个分段
         segments = [{ start: 0, end: duration }];
       }
+      
+      // 调试信息
+      console.log('Trim regions:', trimRegions);
+      console.log('Segments:', segments);
+      console.log('Zoom regions:', zoomRegions);
       
       // 处理 Aspect ratio
       let scaleFilter = '';
@@ -382,39 +392,35 @@ export default function EditPage() {
         }
       }
       
-      // 构建滤镜链 - 修复背景图片处理
+      // 构建滤镜链 - 修复 Zoom 和背景处理
       let filterChain = '';
+      let useComplexFilter = false;
+      
+      // 构建 Zoom 效果滤镜 - 暂时禁用，先确保 Trim 效果正常
+      let zoomFilter = '';
+      // if (zoomRegions.length > 0) {
+      //   // 使用简单的 zoom 效果
+      //   const zoom = zoomRegions[0];
+      //   const startTime = Math.round(zoom.start * 100) / 100;
+      //   const endTime = Math.round(zoom.end * 100) / 100;
+      //   // 使用更简单的 zoom 效果，修复语法
+      //   zoomFilter = `zoompan=z='if(between(t,${startTime},${endTime}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
+      // }
       
       if (hasBackground) {
-        // 当有背景图片时，需要分别处理视频和背景
+        // 当有背景图片时，需要使用复杂滤镜
+        useComplexFilter = true;
         filterChain = `[0:v]${scaleFilter}`;
-        
-        // 如果有 Zoom 区域，添加 Zoom 效果
-        if (zoomRegions.length > 0) {
-          const zoomFilter = zoomRegions.map(zoom => {
-            const startFrame = Math.floor(zoom.start * 30);
-            const endFrame = Math.floor(zoom.end * 30);
-            return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
-          }).join(',');
+        if (zoomFilter) {
           filterChain += `,${zoomFilter}`;
         }
-        
-        // 添加背景合成
         filterChain += `[v];[1:v]scale=1920:1080[bg];[bg][v]overlay=0:0`;
       } else {
         // 没有背景图片时的处理
         filterChain = scaleFilter;
-        
-        // 如果有 Zoom 区域，添加 Zoom 效果
-        if (zoomRegions.length > 0) {
-          const zoomFilter = zoomRegions.map(zoom => {
-            const startFrame = Math.floor(zoom.start * 30);
-            const endFrame = Math.floor(zoom.end * 30);
-            return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
-          }).join(',');
+        if (zoomFilter) {
           filterChain += `,${zoomFilter}`;
         }
-        
         if (backgroundFilter) {
           filterChain += `,${backgroundFilter}`;
         }
@@ -422,9 +428,9 @@ export default function EditPage() {
       
       setProgress(30);
       
-      // 如果有多个分段，需要合并
+      // 修复 Trim 逻辑 - 分别处理每个 segment
       if (segments.length > 1) {
-        // 创建分段文件
+        // 多个分段，需要分别处理然后合并
         const segmentFiles = [];
         const totalSegments = segments.length;
         
@@ -444,12 +450,13 @@ export default function EditPage() {
           if (hasBackground) {
             segmentArgs.splice(2, 0, '-i', 'background.jpg');
             if (filterChain) {
-              segmentArgs.push('-vf', filterChain);
+              segmentArgs.push('-filter_complex', filterChain);
             }
           } else if (filterChain) {
             segmentArgs.push('-vf', filterChain);
           }
           
+          console.log(`Segment ${i} args:`, segmentArgs);
           await ffmpeg.exec(segmentArgs);
           segmentFiles.push(segmentFileName);
           
@@ -474,14 +481,23 @@ export default function EditPage() {
         ]);
       } else {
         // 单个分段，直接处理
+        const segment = segments[0];
         const execArgs = ['-i', inputFileName];
+        
+        // 添加时间裁剪
+        execArgs.push('-ss', segment.start.toString());
+        execArgs.push('-t', (segment.end - segment.start).toString());
         
         if (hasBackground) {
           execArgs.push('-i', 'background.jpg');
         }
         
         if (filterChain) {
-          execArgs.push('-vf', filterChain);
+          if (useComplexFilter) {
+            execArgs.push('-filter_complex', filterChain);
+          } else {
+            execArgs.push('-vf', filterChain);
+          }
         }
         
         execArgs.push(
@@ -492,6 +508,7 @@ export default function EditPage() {
         );
         
         setProgress(50);
+        console.log('FFmpeg args:', execArgs);
         await ffmpeg.exec(execArgs);
         setProgress(80);
       }
@@ -524,8 +541,8 @@ export default function EditPage() {
   return (
     <main className="container mx-auto px-2 py-4">
       <Card className="border-0 shadow-none">
-        <CardContent className="grid md:grid-cols-4 gap-4 p-4">
-          <div className="md:col-span-3">
+        <CardContent className="grid md:grid-cols-5 gap-4 p-4">
+          <div className="md:col-span-4">
             <div className="overflow-hidden rounded-lg">
               <video
                 ref={videoRef}
@@ -561,7 +578,7 @@ export default function EditPage() {
               onTimeChange={handleTimeChange}
             />
           </div>
-          <div className="space-y-4">
+          <div className="md:col-span-1">
             <ExportPanel
               onExport={handleExport}
               isProcessing={isProcessing}
