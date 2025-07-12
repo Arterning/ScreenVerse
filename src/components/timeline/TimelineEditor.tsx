@@ -6,9 +6,11 @@ export type TimelineRegion = {
   start: number;
   end: number;
   selected?: boolean;
+  active?: boolean; // 新增：激活状态
   // Zoom 区域特有的属性
   zoomCenter?: { x: number; y: number }; // 鼠标坐标（相对于视频的百分比）
   zoomSize?: { width: number; height: number }; // 放大区域大小（像素）
+  zoomLevel?: number; // 新增：放大级别 (1.0-3.0)
 };
 
 interface TimelineEditorProps {
@@ -167,7 +169,14 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             className={`absolute top-2 h-16 flex items-center group ${region.selected ? 'ring-2 ring-blue-500 dark:ring-blue-400 z-10' : 'z-0'}`}
             style={{ left, width }}
             onMouseDown={e => onMouseDown(e, region.id, 'move')}
-            onClick={e => { e.stopPropagation(); onSelect(region.id); }}
+            onClick={e => { 
+              e.stopPropagation(); 
+              onSelect(region.id);
+              // 如果是 Zoom 区域，触发 seekAndPlay
+              if (region.type === 'zoom' && onSeekAndPlay) {
+                onSeekAndPlay(region.start);
+              }
+            }}
           >
             {/* 左 handle */}
             <div
@@ -182,13 +191,29 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             <div
               className={`flex-1 h-full flex items-center justify-center text-xs font-semibold select-none rounded-sm ${
                 region.type === 'zoom' 
-                  ? 'bg-blue-200/80 dark:bg-blue-900/80 border-blue-500 dark:border-blue-400' 
+                  ? region.active
+                    ? 'bg-green-200/80 dark:bg-green-900/80 border-green-500 dark:border-green-400'
+                    : 'bg-blue-200/80 dark:bg-blue-900/80 border-blue-500 dark:border-blue-400'
                   : 'bg-red-200/80 dark:bg-red-900/80 border-red-500 dark:border-red-400'
               } border-y-2 border-x-0 backdrop-blur-sm`}
               style={{ borderLeft: 'none', borderRight: 'none' }}
+              onClick={e => { 
+                e.stopPropagation(); 
+                onSelect(region.id);
+                // 如果是 Zoom 区域，触发 seekAndPlay
+                if (region.type === 'zoom' && onSeekAndPlay) {
+                  onSeekAndPlay(region.start);
+                }
+              }}
             >
-              <span className="text-blue-700 dark:text-blue-300 font-medium">
-                {region.type === 'zoom' ? 'ZOOM' : 'TRIM'}
+              <span className={`font-medium ${
+                region.type === 'zoom' 
+                  ? region.active
+                    ? 'text-green-700 dark:text-green-300'
+                    : 'text-blue-700 dark:text-blue-300'
+                  : 'text-red-700 dark:text-red-300'
+              }`}>
+                {region.type === 'zoom' ? (region.active ? 'ACTIVE' : 'ZOOM') : 'TRIM'}
               </span>
             </div>
             {/* 右 handle */}

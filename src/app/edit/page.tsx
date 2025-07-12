@@ -15,6 +15,7 @@ import { getVideoFromDB, clearDB } from '@/lib/db';
 import { TimelineEditor, TimelineRegion } from '@/components/timeline/TimelineEditor';
 import { TimelineToolbar } from '@/components/timeline/TimelineToolbar';
 import { ExportPanel } from '@/components/timeline/ExportPanel';
+import { ZoomLevelControl } from '@/components/timeline/ZoomLevelControl';
 
 export default function EditPage() {
   const router = useRouter();
@@ -31,12 +32,14 @@ export default function EditPage() {
   // 时间轴相关状态
   const [regions, setRegions] = useState<TimelineRegion[]>([]);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [activeRegionId, setActiveRegionId] = useState<string | null>(null); // 新增：激活的区域ID
   const [history, setHistory] = useState<TimelineRegion[][]>([]);
   const [redoStack, setRedoStack] = useState<TimelineRegion[][]>([]);
   
   // 播放控制状态
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isLooping, setIsLooping] = useState(false); // 新增：循环播放状态
 
   // 导出设置状态
   const [aspectRatio, setAspectRatio] = useState('16:9');
@@ -68,10 +71,42 @@ export default function EditPage() {
     if (!videoRef.current) return;
     videoRef.current.currentTime = time;
     setCurrentTime(time);
-    if (!isPlaying) {
-      videoRef.current.play();
-      setIsPlaying(true);
+    
+    // 检查是否点击了 Zoom 区域
+    const clickedRegion = regions.find(r => 
+      r.type === 'zoom' && time >= r.start && time <= r.end
+    );
+    
+    if (clickedRegion) {
+      // 如果点击了 Zoom 区域，激活它并开始循环播放
+      setActiveRegionId(clickedRegion.id);
+      setSelectedRegionId(clickedRegion.id);
+      setIsLooping(true);
+      if (!isPlaying) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
+    } else {
+      // 如果点击了其他区域，取消激活状态，停止循环播放
+      setActiveRegionId(null);
+      setSelectedRegionId(null);
+      setIsLooping(false);
+      if (!isPlaying) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
     }
+  };
+
+  // 放大级别调整
+  const handleZoomLevelChange = (level: number) => {
+    if (!activeRegionId) return;
+    
+    setRegions(regions.map(region => 
+      region.id === activeRegionId 
+        ? { ...region, zoomLevel: level }
+        : region
+    ));
   };
 
   const handleTimeChange = (time: number) => {
@@ -85,6 +120,19 @@ export default function EditPage() {
     if (!videoRef.current) return;
     const time = videoRef.current.currentTime;
     setCurrentTime(time);
+    
+    // 检查是否在激活的 Zoom 区域内，如果是则循环播放
+    if (activeRegionId && isLooping) {
+      const activeRegion = regions.find(r => r.id === activeRegionId);
+      if (activeRegion && activeRegion.type === 'zoom') {
+        if (time >= activeRegion.end) {
+          // 循环播放：跳回开始位置
+          videoRef.current.currentTime = activeRegion.start;
+          setCurrentTime(activeRegion.start);
+        }
+        return; // 在激活区域内，不处理其他逻辑
+      }
+    }
     
     // 检查是否在 Trim 区域内，如果是则跳过
     const currentTrimRegion = regions.find(r => 
@@ -100,6 +148,15 @@ export default function EditPage() {
 
   // 获取当前 Zoom 区域
   const getCurrentZoomRegion = () => {
+    // 如果有激活的 Zoom 区域，优先使用激活的
+    if (activeRegionId) {
+      const activeRegion = regions.find(r => r.id === activeRegionId);
+      if (activeRegion && activeRegion.type === 'zoom') {
+        return activeRegion;
+      }
+    }
+    
+    // 否则查找当前时间所在的 Zoom 区域
     return regions.find(r => 
       r.type === 'zoom' && currentTime >= r.start && currentTime <= r.end
     );
@@ -107,7 +164,7 @@ export default function EditPage() {
 
   const currentZoomRegion = getCurrentZoomRegion();
   const videoStyle = currentZoomRegion ? {
-    transform: 'scale(1.5)',
+    transform: `scale(${currentZoomRegion.zoomLevel || 1.5})`,
     transformOrigin: `${currentZoomRegion.zoomCenter?.x || 50}% ${currentZoomRegion.zoomCenter?.y || 50}%`,
     transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   } : {
@@ -139,12 +196,16 @@ export default function EditPage() {
     const newRegion: TimelineRegion = {
       ...pendingZoomRegion,
       zoomCenter: { x, y },
+      zoomLevel: 1.5, // 默认放大级别
     } as TimelineRegion;
     
     // 添加到区域列表
     setHistory(h => [...h, regions]);
     setRegions([...regions, newRegion]);
     setSelectedRegionId(newRegion.id);
+    // 新增的 zoom 区域自动激活
+    setActiveRegionId(newRegion.id);
+    setIsLooping(true);
     setRedoStack([]);
     
     // 退出设置模式
@@ -166,6 +227,12 @@ export default function EditPage() {
       title: '已取消',
       description: '放大位置设置已取消，可以继续播放视频',
     });
+  };
+
+  // 重置激活状态
+  const resetActiveState = () => {
+    setActiveRegionId(null);
+    setIsLooping(false);
   };
 
   // 工具栏操作
@@ -228,6 +295,10 @@ export default function EditPage() {
     setHistory(h => [...h, regions]);
     setRegions(regions.filter(r => r.id !== selectedRegionId));
     setSelectedRegionId(null);
+    // 如果删除的是激活的区域，重置激活状态
+    if (selectedRegionId === activeRegionId) {
+      resetActiveState();
+    }
     setRedoStack([]);
   };
   const handleUndo = () => {
@@ -250,6 +321,7 @@ export default function EditPage() {
     setHistory(h => [...h, regions]);
     setRegions([]);
     setSelectedRegionId(null);
+    resetActiveState();
     setRedoStack([]);
   };
 
@@ -720,7 +792,11 @@ export default function EditPage() {
             />
             <TimelineEditor
               duration={duration}
-              regions={regions.map(r => ({ ...r, selected: r.id === selectedRegionId }))}
+              regions={regions.map(r => ({ 
+                ...r, 
+                selected: r.id === selectedRegionId,
+                active: r.id === activeRegionId 
+              }))}
               selectedId={selectedRegionId}
               currentTime={currentTime}
               onSelect={setSelectedRegionId}
@@ -729,7 +805,7 @@ export default function EditPage() {
               onSeekAndPlay={handleSeekAndPlay}
             />
           </div>
-          <div className="md:col-span-1">
+          <div className="md:col-span-1 space-y-4">
             <ExportPanel
               onExport={handleExport}
               isProcessing={isProcessing}
@@ -739,6 +815,11 @@ export default function EditPage() {
               background={background}
               onBackgroundChange={setBackground}
               onBackgroundUpload={handleBackgroundUpload}
+            />
+            <ZoomLevelControl
+              zoomLevel={regions.find(r => r.id === activeRegionId)?.zoomLevel || 1.5}
+              onZoomLevelChange={handleZoomLevelChange}
+              isVisible={!!activeRegionId}
             />
           </div>
         </CardContent>
