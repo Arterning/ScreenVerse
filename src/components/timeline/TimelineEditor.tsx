@@ -107,19 +107,31 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full relative h-16 bg-gray-100 rounded mt-4 border cursor-pointer select-none"
+      className="w-full relative h-20 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg mt-4 border border-gray-200 dark:border-gray-700 cursor-pointer select-none shadow-sm"
       onClick={() => onSelect(null)}
     >
       {/* 时间轴主线 */}
-      <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-300" style={{ transform: 'translateY(-50%)' }} />
+      <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" style={{ transform: 'translateY(-50%)' }} />
+      
+      {/* 时间刻度 */}
+      <div className="absolute left-0 right-0 top-0 bottom-0 flex justify-between px-2">
+        {Array.from({ length: 11 }, (_, i) => (
+          <div key={i} className="flex flex-col items-center">
+            <div className="w-px h-2 bg-gray-300 dark:bg-gray-600" />
+            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {Math.floor((i / 10) * duration)}s
+            </span>
+          </div>
+        ))}
+      </div>
       
       {/* 播放头 */}
       <div
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 cursor-ew-resize z-20"
+        className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize z-20 shadow-lg"
         style={{ left: playheadPosition }}
         onMouseDown={onPlayheadMouseDown}
       >
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-gray-800 shadow-lg" />
       </div>
       
       {/* 区域渲染 */}
@@ -129,35 +141,41 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         return (
           <div
             key={region.id}
-            className={`absolute top-2 h-10 flex items-center group ${region.selected ? 'ring-2 ring-primary z-10' : 'z-0'}`}
+            className={`absolute top-2 h-16 flex items-center group ${region.selected ? 'ring-2 ring-blue-500 dark:ring-blue-400 z-10' : 'z-0'}`}
             style={{ left, width }}
             onMouseDown={e => onMouseDown(e, region.id, 'move')}
             onClick={e => { e.stopPropagation(); onSelect(region.id); }}
           >
             {/* 左 handle */}
             <div
-              className="w-2 h-10 bg-primary/80 rounded-l cursor-ew-resize flex items-center justify-center group-hover:bg-primary"
-              style={{ marginLeft: -8 }}
+              className="w-3 h-16 bg-blue-500/80 dark:bg-blue-400/80 rounded-l cursor-ew-resize flex items-center justify-center group-hover:bg-blue-500 dark:group-hover:bg-blue-400 transition-colors"
+              style={{ marginLeft: -12 }}
               onMouseDown={e => onMouseDown(e, region.id, 'start')}
               onClick={e => e.stopPropagation()}
             >
-              <div className="w-1 h-8 bg-white rounded" />
+              <div className="w-1 h-12 bg-white dark:bg-gray-200 rounded" />
             </div>
             {/* 区域本体 */}
             <div
-              className={`flex-1 h-full flex items-center justify-center text-xs font-bold select-none ${region.type === 'zoom' ? 'bg-blue-200 border-blue-500' : 'bg-red-200 border-red-500'} border-y-2 border-x-0`}
+              className={`flex-1 h-full flex items-center justify-center text-xs font-semibold select-none rounded-sm ${
+                region.type === 'zoom' 
+                  ? 'bg-blue-200/80 dark:bg-blue-900/80 border-blue-500 dark:border-blue-400' 
+                  : 'bg-red-200/80 dark:bg-red-900/80 border-red-500 dark:border-red-400'
+              } border-y-2 border-x-0 backdrop-blur-sm`}
               style={{ borderLeft: 'none', borderRight: 'none' }}
             >
-              {region.type === 'zoom' ? 'Zoom' : 'Trim'}
+              <span className="text-blue-700 dark:text-blue-300 font-medium">
+                {region.type === 'zoom' ? 'ZOOM' : 'TRIM'}
+              </span>
             </div>
             {/* 右 handle */}
             <div
-              className="w-2 h-10 bg-primary/80 rounded-r cursor-ew-resize flex items-center justify-center group-hover:bg-primary"
-              style={{ marginRight: -8 }}
+              className="w-3 h-16 bg-blue-500/80 dark:bg-blue-400/80 rounded-r cursor-ew-resize flex items-center justify-center group-hover:bg-blue-500 dark:group-hover:bg-blue-400 transition-colors"
+              style={{ marginRight: -12 }}
               onMouseDown={e => onMouseDown(e, region.id, 'end')}
               onClick={e => e.stopPropagation()}
             >
-              <div className="w-1 h-8 bg-white rounded" />
+              <div className="w-1 h-12 bg-white dark:bg-gray-200 rounded" />
             </div>
           </div>
         );

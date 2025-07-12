@@ -6,6 +6,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 
+// 预置背景图片
+const PRESET_BACKGROUNDS = [
+  {
+    id: 'none',
+    name: 'None (Transparent)',
+    url: null
+  },
+  {
+    id: 'black',
+    name: 'Black',
+    url: null
+  },
+  {
+    id: 'white',
+    name: 'White',
+    url: null
+  },
+  {
+    id: 'tech-blue',
+    name: 'Tech Blue',
+    url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop'
+  },
+  {
+    id: 'cyber-grid',
+    name: 'Cyber Grid',
+    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop'
+  },
+  {
+    id: 'neon-purple',
+    name: 'Neon Purple',
+    url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop'
+  },
+  {
+    id: 'matrix-green',
+    name: 'Matrix Green',
+    url: 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop'
+  },
+  {
+    id: 'futuristic-orange',
+    name: 'Futuristic Orange',
+    url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
+  }
+];
+
 interface ExportPanelProps {
   onExport: () => void;
   isProcessing: boolean;
@@ -40,6 +84,8 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
     }
   };
 
+  const selectedBackground = PRESET_BACKGROUNDS.find(bg => bg.id === background);
+
   return (
     <Card>
       <CardHeader>
@@ -70,12 +116,25 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
               <SelectValue placeholder="Select background" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None (Transparent)</SelectItem>
-              <SelectItem value="black">Black</SelectItem>
-              <SelectItem value="white">White</SelectItem>
+              {PRESET_BACKGROUNDS.map(bg => (
+                <SelectItem key={bg.id} value={bg.id}>
+                  {bg.name}
+                </SelectItem>
+              ))}
               <SelectItem value="custom">Custom Image</SelectItem>
             </SelectContent>
           </Select>
+          
+          {/* 背景预览 */}
+          {selectedBackground?.url && (
+            <div className="mt-2">
+              <img 
+                src={selectedBackground.url} 
+                alt={selectedBackground.name} 
+                className="w-full h-20 object-cover rounded border"
+              />
+            </div>
+          )}
           
           {background === 'custom' && (
             <div className="space-y-2">

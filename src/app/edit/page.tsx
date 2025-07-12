@@ -91,13 +91,13 @@ export default function EditPage() {
   };
 
   const currentZoomRegion = getCurrentZoomRegion();
-  const videoContainerStyle = currentZoomRegion ? {
+  const videoStyle = currentZoomRegion ? {
     transform: 'scale(1.5)',
     transformOrigin: 'center center',
-    transition: 'transform 0.3s ease-in-out',
+    transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   } : {
     transform: 'scale(1)',
-    transition: 'transform 0.3s ease-in-out',
+    transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   };
 
   // 视频播放状态变化处理
@@ -108,8 +108,8 @@ export default function EditPage() {
   const handleAddZoom = () => {
     if (!duration) return;
     const len = duration / 10;
-    const start = 0;
-    const end = Math.min(len, duration);
+    const start = Math.max(0, currentTime - len / 2);
+    const end = Math.min(duration, start + len);
     const newRegion: TimelineRegion = {
       id: `zoom-${Date.now()}`,
       type: 'zoom',
@@ -124,8 +124,8 @@ export default function EditPage() {
   const handleAddTrim = () => {
     if (!duration) return;
     const len = duration / 10;
-    const start = 0;
-    const end = Math.min(len, duration);
+    const start = Math.max(0, currentTime - len / 2);
+    const end = Math.min(duration, start + len);
     const newRegion: TimelineRegion = {
       id: `trim-${Date.now()}`,
       type: 'trim',
@@ -352,6 +352,30 @@ export default function EditPage() {
       backgroundFilter = 'pad=iw:ih:0:0:black';
     } else if (background === 'white') {
       backgroundFilter = 'pad=iw:ih:0:0:white';
+    } else if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
+      // 预置背景图片处理
+      const presetBackgrounds = {
+        'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
+        'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop',
+        'neon-purple': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop',
+        'matrix-green': 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop',
+        'futuristic-orange': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
+      };
+      
+      const bgUrl = presetBackgrounds[background as keyof typeof presetBackgrounds];
+      if (bgUrl) {
+        // 下载背景图片并添加到 FFmpeg
+        try {
+          const bgResponse = await fetch(bgUrl);
+          const bgBlob = await bgResponse.blob();
+          const bgBuffer = await bgBlob.arrayBuffer();
+          await ffmpeg.writeFile('background.jpg', new Uint8Array(bgBuffer));
+          backgroundFilter = '[0:v][1:v]overlay=0:0';
+          ffmpegArgs = ['-i', inputFileName, '-i', 'background.jpg', ...ffmpegArgs.slice(1)];
+        } catch (error) {
+          console.error('Failed to load background image:', error);
+        }
+      }
     }
     
     // 构建复杂的滤镜链
@@ -362,8 +386,13 @@ export default function EditPage() {
     
     // 如果有 Zoom 区域，添加 Zoom 效果
     if (zoomRegions.length > 0) {
-      // 简化的 Zoom 效果 - 在指定时间段内放大
-      filterChain += ',zoompan=z=\'if(lte(on,1),1.5,1)\':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)';
+      // 更精确的 Zoom 效果 - 在指定时间段内放大
+      const zoomFilter = zoomRegions.map(zoom => {
+        const startFrame = Math.floor(zoom.start * 30); // 假设30fps
+        const endFrame = Math.floor(zoom.end * 30);
+        return `zoompan=z='if(between(n,${startFrame},${endFrame}),1.5,1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2)`;
+      }).join(',');
+      filterChain += `,${zoomFilter}`;
     }
     
     if (filterChain) {
@@ -437,20 +466,17 @@ export default function EditPage() {
 
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Video Editor</CardTitle>
-          <CardDescription>Trim or crop your recording before downloading.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <div className="overflow-hidden rounded-lg" style={videoContainerStyle}>
+    <main className="container mx-auto px-2 py-4">
+      <Card className="border-0 shadow-none">
+        <CardContent className="grid md:grid-cols-4 gap-4 p-4">
+          <div className="md:col-span-3">
+            <div className="overflow-hidden rounded-lg">
               <video
                 ref={videoRef}
                 src={editedVideoUrl || videoUrl || undefined}
                 controls
                 className="w-full aspect-video rounded-lg bg-muted"
+                style={videoStyle}
                 onLoadedMetadata={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={handlePlay}
@@ -479,7 +505,7 @@ export default function EditPage() {
               onTimeChange={handleTimeChange}
             />
           </div>
-          <div className="space-y-6">
+          <div className="space-y-4">
             <ExportPanel
               onExport={handleExport}
               isProcessing={isProcessing}
