@@ -19,6 +19,7 @@ interface TimelineEditorProps {
   onSelect: (id: string | null) => void;
   onChange: (regions: TimelineRegion[]) => void;
   onTimeChange: (time: number) => void;
+  onSeekAndPlay?: (time: number) => void; // 新增：跳转并播放
 }
 
 export const TimelineEditor: React.FC<TimelineEditorProps> = ({
@@ -29,6 +30,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   onSelect,
   onChange,
   onTimeChange,
+  onSeekAndPlay,
 }) => {
   const [dragging, setDragging] = useState<null | { id: string; type: 'move' | 'start' | 'end'; offset?: number }>();
   const [playheadDragging, setPlayheadDragging] = useState(false);
@@ -54,6 +56,24 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const onPlayheadMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     setPlayheadDragging(true);
+  };
+
+  // 时间轴点击事件处理
+  const onTimelineClick = (e: React.MouseEvent) => {
+    if (!containerRef.current || dragging || playheadDragging) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const newTime = (mouseX / rect.width) * duration;
+    const clampedTime = Math.max(0, Math.min(duration, newTime));
+    
+    // 如果提供了 onSeekAndPlay 回调，则跳转并播放
+    if (onSeekAndPlay) {
+      onSeekAndPlay(clampedTime);
+    } else {
+      // 否则只跳转时间
+      onTimeChange(clampedTime);
+    }
   };
 
   const onMouseMove = (e: MouseEvent) => {
@@ -111,7 +131,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     <div
       ref={containerRef}
       className="w-full relative h-20 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg mt-4 border border-gray-200 dark:border-gray-700 cursor-pointer select-none shadow-sm"
-      onClick={() => onSelect(null)}
+      onClick={onTimelineClick}
     >
       {/* 时间轴主线 */}
       <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" style={{ transform: 'translateY(-50%)' }} />

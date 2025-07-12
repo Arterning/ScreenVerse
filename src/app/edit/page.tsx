@@ -63,6 +63,17 @@ export default function EditPage() {
     setIsPlaying(!isPlaying);
   };
 
+  // 跳转并播放
+  const handleSeekAndPlay = (time: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = time;
+    setCurrentTime(time);
+    if (!isPlaying) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
   const handleTimeChange = (time: number) => {
     if (!videoRef.current) return;
     videoRef.current.currentTime = time;
@@ -160,11 +171,11 @@ export default function EditPage() {
   // 工具栏操作
   const handleAddZoom = () => {
     if (!duration) return;
-    const len = duration / 10;
-    const start = Math.max(0, currentTime - len / 2);
+    const len = duration / 50; // 区间长度为视频总长的1/50
+    const start = currentTime; // 开始时间就是当前暂停的时间
     const end = Math.min(duration, start + len);
     
-    console.log('Adding zoom region:', { start, end, currentTime, duration });
+    console.log('Adding zoom region:', { start, end, currentTime, duration, len });
     
     // 暂停视频播放
     if (videoRef.current && !videoRef.current.paused) {
@@ -198,8 +209,8 @@ export default function EditPage() {
   };
   const handleAddTrim = () => {
     if (!duration) return;
-    const len = duration / 10;
-    const start = Math.max(0, currentTime - len / 2);
+    const len = duration / 50; // 区间长度为视频总长的1/50
+    const start = currentTime; // 开始时间就是当前时间
     const end = Math.min(duration, start + len);
     const newRegion: TimelineRegion = {
       id: `trim-${Date.now()}`,
@@ -715,6 +726,7 @@ export default function EditPage() {
               onSelect={setSelectedRegionId}
               onChange={setRegions}
               onTimeChange={handleTimeChange}
+              onSeekAndPlay={handleSeekAndPlay}
             />
           </div>
           <div className="md:col-span-1">
