@@ -82,61 +82,111 @@ export default function RecordingControls({
     }
   };
 
+  const handleSaveToLibrary = async () => {
+    if (videoUrl) {
+      try {
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        await saveVideoToDB(blob);
+        toast({
+          title: "保存成功",
+          description: "录屏已保存到您的库中",
+        });
+      } catch (error) {
+        console.error("Failed to save video to library:", error);
+        toast({
+          title: "保存失败",
+          description: "无法保存录屏到库中",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   return (
     <>
-      <div className="flex flex-wrap items-center justify-center gap-4">
-        {status === "idle" && (
-          <Button size="lg" onClick={startRecording}>
-            <Clapperboard className="mr-2 h-5 w-5" /> Start Recording
-          </Button>
-        )}
-        {(status === "recording" || status === "paused") && (
-          <>
-            {status === "recording" ? (
-              <Button size="lg" variant="secondary" onClick={pauseRecording}>
-                <Pause className="mr-2 h-5 w-5" /> Pause
-              </Button>
-            ) : (
-              <Button size="lg" variant="secondary" onClick={resumeRecording}>
-                <Play className="mr-2 h-5 w-5" /> Resume
-              </Button>
-            )}
-            <Button size="lg" variant="destructive" onClick={stopRecording}>
-              <StopCircle className="mr-2 h-5 w-5" /> Stop Recording
-            </Button>
-          </>
-        )}
-      </div>
-      {status === "preview" && videoUrl && (
-        <Card className="w-full mt-4 bg-secondary/50">
+      {status === "idle" && (
+        <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Export Your Recording</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Clapperboard className="h-5 w-5" />
+              Ready to Record
+            </CardTitle>
             <CardDescription>
-              Download, edit your video, or start a new recording.
+              Configure your recording settings and start capturing your screen.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="space-y-2 flex-1 w-full">
-              <Label htmlFor="export-format">Format</Label>
-              <Select
-                value={settings.exportFormat}
-                onValueChange={setExportFormat}
-              >
-                <SelectTrigger id="export-format">
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="export-format">Export Format</Label>
+              <Select value={settings.exportFormat} onValueChange={setExportFormat}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="video/webm">WebM</SelectItem>
-                  <SelectItem
-                    value="video/mp4"
-                    disabled={!MediaRecorder.isTypeSupported("video/mp4")}
-                  >
-                    MP4 (Browser Dependant)
-                  </SelectItem>
+                  <SelectItem value="video/webm">WebM (Recommended)</SelectItem>
+                  <SelectItem value="video/mp4">MP4</SelectItem>
                   <SelectItem value="image/gif">GIF</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <Button onClick={startRecording} size="lg" className="w-full">
+              <Play className="mr-2 h-5 w-5" /> Start Recording
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(status === "recording" || status === "paused") && (
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {status === "recording" ? (
+                <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+              ) : (
+                <Pause className="h-5 w-5" />
+              )}
+              {status === "recording" ? "Recording..." : "Paused"}
+            </CardTitle>
+            <CardDescription>
+              {status === "recording"
+                ? "Click stop when you're done recording."
+                : "Recording is paused. Resume or stop recording."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              {status === "recording" ? (
+                <Button onClick={pauseRecording} variant="outline" className="flex-1">
+                  <Pause className="mr-2 h-4 w-4" /> Pause
+                </Button>
+              ) : (
+                <Button onClick={resumeRecording} variant="outline" className="flex-1">
+                  <Play className="mr-2 h-4 w-4" /> Resume
+                </Button>
+              )}
+              <Button onClick={stopRecording} variant="destructive" className="flex-1">
+                <StopCircle className="mr-2 h-4 w-4" /> Stop
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(status === "preview" || status === "converting") && videoUrl && (
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Scissors className="h-5 w-5" />
+              {status === "converting" ? "Converting..." : "Recording Complete"}
+            </CardTitle>
+            <CardDescription>
+              {status === "converting" 
+                ? "Converting your recording to GIF format..."
+                : "Your recording is ready. Download, edit, or save to your library."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="flex w-full sm:w-auto gap-4">
               <Button
                 size="lg"
@@ -152,14 +202,26 @@ export default function RecordingControls({
                 variant="secondary"
                 onClick={handleEdit}
                 className="flex-1 sm:flex-none"
+                disabled={status === 'converting'}
               >
                 <Scissors className="mr-2 h-5 w-5" /> Edit
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={handleSaveToLibrary}
+                className="flex-1"
+                disabled={status === 'converting'}
+              >
+                <Clapperboard className="mr-2 h-5 w-5" /> Save to Library
               </Button>
               <Button
                 size="lg"
                 variant="outline"
                 onClick={handleNewRecording}
-                className="flex-1 sm:flex-none"
+                className="flex-1"
               >
                 <Clapperboard className="mr-2 h-5 w-5" /> New Recording
               </Button>

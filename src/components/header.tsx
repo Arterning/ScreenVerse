@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Icons } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { Video } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -15,10 +16,16 @@ export function AppHeader() {
             <span className="font-bold sm:inline-block">ScreenVerse</span>
           </Link>
         </div>
-        <div className="flex flex-1 items-center justify-end space-x-2">
-          <nav className="flex items-center">
-            <ThemeToggle />
+        <div className="flex flex-1 items-center justify-between">
+          <nav className="flex items-center space-x-4">
+            <Link href="/recordings" className="flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary">
+              <Video className="h-4 w-4" />
+              <span className="hidden sm:inline-block">我的录屏</span>
+            </Link>
           </nav>
+          <div className="flex items-center space-x-2">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </header>
