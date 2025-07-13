@@ -40,34 +40,13 @@ export default function RecordingsPage() {
 
   const handlePlay = async (recording: RecordingMetadata) => {
     try {
-      const videoBlob = await getVideoFromDB(recording.id);
-      if (videoBlob) {
-        // 使用临时存储，不创建新的录屏记录
-        const tempId = 'temp_for_edit';
-        const db = await getDB();
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        
-        // 保存到临时位置
-        await new Promise<void>((resolve, reject) => {
-          const request = store.put(videoBlob, tempId);
-          transaction.oncomplete = () => resolve();
-          transaction.onerror = (event: Event) => reject((event.target as IDBRequest).error);
-        });
-        
-        router.push('/edit');
-      } else {
-        toast({
-          title: '播放失败',
-          description: '无法加载视频文件',
-          variant: 'destructive',
-        });
-      }
+      // 直接跳转到编辑页面，传递视频ID作为路径参数
+      router.push(`/edit/${recording.id}`);
     } catch (error) {
-      console.error('Failed to play recording:', error);
+      console.error('Failed to navigate to edit page:', error);
       toast({
-        title: '播放失败',
-        description: '无法播放此录屏',
+        title: '跳转失败',
+        description: '无法跳转到编辑页面',
         variant: 'destructive',
       });
     }
