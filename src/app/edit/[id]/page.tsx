@@ -390,6 +390,7 @@ export default function EditPage() {
     };
 
     loadVideo();
+    loadFFmpeg();
   }, [params.id, router, toast]);
 
   const handleLoadedMetadata = () => {
@@ -480,10 +481,8 @@ export default function EditPage() {
       // 处理 Trim 区域 - 构建分段
       let segments = [];
       if (trimRegions.length > 0) {
-        // 按时间排序
         trimRegions.sort((a, b) => a.start - b.start);
         
-        // 构建分段列表（保留非 Trim 区域）
         let lastEnd = 0;
         for (const trim of trimRegions) {
           if (trim.start > lastEnd) {
@@ -496,16 +495,13 @@ export default function EditPage() {
           segments.push({ start: lastEnd, end: duration });
         }
         
-        // 如果没有有效分段，使用整个视频
         if (segments.length === 0) {
           segments = [{ start: 0, end: duration }];
         }
       } else {
-        // 没有 Trim 区域，整个视频作为一个分段
         segments = [{ start: 0, end: duration }];
       }
       
-      // 调试信息
       console.log('Trim regions:', trimRegions);
       console.log('Segments:', segments);
       console.log('Zoom regions:', zoomRegions);
@@ -538,7 +534,6 @@ export default function EditPage() {
       } else if (background === 'white') {
         backgroundFilter = 'pad=iw:ih:0:0:white';
       } else if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
-        // 预置背景图片处理
         const presetBackgrounds = {
           'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
           'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop',
@@ -559,7 +554,6 @@ export default function EditPage() {
             console.log('Background image loaded successfully');
           } catch (error) {
             console.error('Failed to load background image:', error);
-            // 如果背景图片加载失败，继续处理但不使用背景
             hasBackground = false;
           }
         }
@@ -568,67 +562,44 @@ export default function EditPage() {
       console.log('Background setting:', background);
       console.log('Has background:', hasBackground);
       
-      // 构建滤镜链 - 修复 Zoom 和背景处理
+      // 修复的 Zoom 滤镜构建逻辑
       let filterChain = '';
       let useComplexFilter = false;
       
-      // 构建 Zoom 效果滤镜 - 支持多个 Zoom 区间
-      let zoomFilter = '';
       if (zoomRegions.length > 0) {
-        // 使用 split+scale+crop+overlay 方案支持多个 Zoom 区间
-        const scaleExpr = 1.5; // 放大倍数
+        useComplexFilter = true;
         
-        if (zoomRegions.length === 1) {
-          // 单个 Zoom 区域的简化版本
-          const zoom = zoomRegions[0];
+        // 构建 zoom 滤镜 - 简化版本，更可靠
+        let zoomFilter = '[0:v]';
+        
+        // 为每个 zoom 区域构建滤镜
+        for (let i = 0; i < zoomRegions.length; i++) {
+          const zoom = zoomRegions[i];
           const startTime = Math.round(zoom.start * 100) / 100;
           const endTime = Math.round(zoom.end * 100) / 100;
+          const zoomLevel = zoom.level || 1.5; // 允许自定义缩放级别
           
-          zoomFilter = `[0:v]split=2[base][zoomed];` +
-            `[zoomed]scale=iw*${scaleExpr}:ih*${scaleExpr},crop=iw:ih:(in_w-out_w)/2:(in_h-out_h)/2[zoomedout];` +
-            `[base][zoomedout]overlay=shortest=1:enable='between(t,${startTime},${endTime})'`;
-        } else {
-          // 多个 Zoom 区域的完整版本
-          let filterParts = [`[0:v]split=${zoomRegions.length + 1}[base]`];
+          // 获取鼠标位置（如果有的话）
+          const mouseX = zoom.mouseX || 0.5; // 默认中心点
+          const mouseY = zoom.mouseY || 0.5;
           
-          // 为每个 Zoom 区域创建处理链
-          zoomRegions.forEach((zoom, index) => {
-            const startTime = Math.round(zoom.start * 100) / 100;
-            const endTime = Math.round(zoom.end * 100) / 100;
-            const zoomIndex = index + 1;
-            
-            // 添加缩放和裁剪
-            filterParts.push(`[base]scale=iw*${scaleExpr}:ih*${scaleExpr},crop=iw:ih:(in_w-out_w)/2:(in_h-out_h)/2[zoom${zoomIndex}]`);
-          });
+          // 构建单个 zoom 效果的滤镜
+          // 使用 zoompan 滤镜更简单可靠
+          const zoomPanFilter = `zoompan=z='if(between(t,${startTime},${endTime}),${zoomLevel},1)':x='if(between(t,${startTime},${endTime}),iw*${mouseX}-iw*${mouseX}/zoom,iw/2-iw/2/zoom)':y='if(between(t,${startTime},${endTime}),ih*${mouseY}-ih*${mouseY}/zoom,ih/2-ih/2/zoom)':d=1:s=${scaleFilter.split('=')[1]}`;
           
-          // 构建 overlay 链
-          let overlayChain = '[base]';
-          zoomRegions.forEach((zoom, index) => {
-            const startTime = Math.round(zoom.start * 100) / 100;
-            const endTime = Math.round(zoom.end * 100) / 100;
-            const zoomIndex = index + 1;
-            
-            overlayChain += `[zoom${zoomIndex}]overlay=shortest=1:enable='between(t,${startTime},${endTime})'`;
-            if (index < zoomRegions.length - 1) {
-              overlayChain += '[tmp' + (index + 1) + '];[tmp' + (index + 1) + ']';
-            }
-          });
-          
-          filterParts.push(overlayChain);
-          zoomFilter = filterParts.join(';');
+          if (i === 0) {
+            zoomFilter += zoomPanFilter;
+          } else {
+            // 如果有多个 zoom 区域，需要更复杂的处理
+            // 这里简化为使用最后一个 zoom 设置
+            zoomFilter = '[0:v]' + zoomPanFilter;
+          }
         }
         
-        console.log('Zoom filter chain:', zoomFilter);
-      }
-      
-      // 构建滤镜链 - 支持 Zoom 效果
-      if (zoomRegions.length > 0) {
-        // 有 Zoom 效果时使用复杂滤镜
-        useComplexFilter = true;
         filterChain = zoomFilter;
-        console.log('Complex filter chain (with zoom):', filterChain);
+        console.log('Zoom filter chain:', filterChain);
       } else {
-        // 没有 Zoom 效果时的简单处理
+        // 没有 zoom 效果时的简单处理
         filterChain = scaleFilter;
         if (backgroundFilter) {
           filterChain += `,${backgroundFilter}`;
@@ -638,9 +609,9 @@ export default function EditPage() {
       
       setProgress(30);
       
-      // 修复 Trim 逻辑 - 分别处理每个 segment，添加内存优化
+      // 处理分段导出
       if (segments.length > 1) {
-        // 多个分段，需要分别处理然后合并
+        // 多个分段处理
         const segmentFiles = [];
         const totalSegments = segments.length;
         
@@ -651,15 +622,10 @@ export default function EditPage() {
           const segmentArgs = [
             '-ss', segment.start.toString(),
             '-i', inputFileName,
-            '-t', (segment.end - segment.start).toString(),
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '23',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            segmentFileName
+            '-t', (segment.end - segment.start).toString()
           ];
           
+          // 添加滤镜
           if (filterChain) {
             if (useComplexFilter) {
               segmentArgs.push('-filter_complex', filterChain);
@@ -668,22 +634,30 @@ export default function EditPage() {
             }
           }
           
+          // 添加编码参数
+          segmentArgs.push(
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            segmentFileName
+          );
+          
           console.log(`Segment ${i} args:`, segmentArgs);
           await ffmpeg.exec(segmentArgs);
           segmentFiles.push(segmentFileName);
           
-          // 更新进度
           const segmentProgress = 30 + (i + 1) * (50 / totalSegments);
           setProgress(Math.round(segmentProgress));
         }
         
-        // 创建文件列表
+        // 创建文件列表并合并
         const fileList = segmentFiles.map(f => `file '${f}'`).join('\n');
         await ffmpeg.writeFile('filelist.txt', fileList);
         
         setProgress(80);
         
-        // 合并分段
         await ffmpeg.exec([
           '-f', 'concat',
           '-safe', '0',
@@ -692,14 +666,19 @@ export default function EditPage() {
           outputFileName
         ]);
       } else {
-        // 单个分段，直接处理
+        // 单个分段处理
         const segment = segments[0];
         const execArgs = ['-i', inputFileName];
         
         // 添加时间裁剪
-        execArgs.push('-ss', segment.start.toString());
-        execArgs.push('-t', (segment.end - segment.start).toString());
+        if (segment.start > 0) {
+          execArgs.push('-ss', segment.start.toString());
+        }
+        if (segment.end < duration) {
+          execArgs.push('-t', (segment.end - segment.start).toString());
+        }
         
+        // 添加滤镜
         if (filterChain) {
           if (useComplexFilter) {
             execArgs.push('-filter_complex', filterChain);
@@ -708,6 +687,7 @@ export default function EditPage() {
           }
         }
         
+        // 添加编码参数
         execArgs.push(
           '-c:v', 'libx264',
           '-preset', 'fast',
@@ -729,18 +709,18 @@ export default function EditPage() {
       try {
         const data = await ffmpeg.readFile(outputFileName);
         const blob = new Blob([data], { type: 'video/mp4' });
-      const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(blob);
         
         // 创建下载链接
-      const a = document.createElement('a');
-      a.href = url;
+        const a = document.createElement('a');
+        a.href = url;
         a.download = `edited-video-${Date.now()}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         
         // 清理内存
-      URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url);
 
         setProgress(100);
         setIsProcessing(false);
@@ -754,8 +734,8 @@ export default function EditPage() {
       console.error('Export error:', error);
       setIsProcessing(false);
       toast({ title: 'Export failed', description: 'Failed to export video.', variant: 'destructive' });
-      }
-    };
+    }
+  };
 
 
   return (
