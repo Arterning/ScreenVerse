@@ -491,46 +491,24 @@ export default function EditPage() {
       return;
     }
 
-    // 2. 逐帧渲染
-    const fps = 60; // 提升帧率
-    const totalFrames = Math.floor(duration * fps);
-    let currentFrame = 0;
-    let recordedChunks: Blob[] = [];
-    let stopped = false;
-
-    // 3. 设置 MediaRecorder
-    const stream = canvas.captureStream(fps);
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-    recorder.ondataavailable = e => {
-      if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `exported-video-${Date.now()}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setProgress(100);
-      setIsProcessing(false);
-      toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
-    };
-
-    // 4. 处理 trim 区域，生成导出帧时间列表
-    const trimRegions = regions.filter(r => r.type === 'trim');
-    // 先将 trim 区域按起始排序
-    trimRegions.sort((a, b) => a.start - b.start);
-    // 生成所有导出帧的时间戳
-    let exportTimes: number[] = [];
-    for (let f = 0; f < totalFrames; f++) {
-      const t = f / fps;
-      // 判断 t 是否在任何 trim 区域内
-      const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
-      if (!inTrim) exportTimes.push(t);
+    // 获取原视频帧率
+    let videoFrameRate = 30;
+    try {
+      // 优先用 videoTracks 获取帧率
+      // @ts-ignore
+      const stream = videoRef.current?.captureStream?.();
+      if (stream && stream.getVideoTracks && stream.getVideoTracks().length > 0) {
+        const settings = stream.getVideoTracks()[0].getSettings();
+        if (settings && settings.frameRate) {
+          videoFrameRate = Math.round(settings.frameRate);
+        }
+      }
+    } catch (e) {}
+    // fallback: 用 duration/totalFrames 估算
+    if (!videoFrameRate && duration && videoRef.current?.videoWidth) {
+      videoFrameRate = Math.round((videoRef.current as any).getVideoPlaybackQuality?.().totalVideoFrames / duration) || 30;
     }
-    const exportTotal = exportTimes.length;
+    if (!videoFrameRate) videoFrameRate = 30;
 
     // 预处理背景图片（如有）
     let bgImage: HTMLImageElement | null = null;
@@ -559,17 +537,63 @@ export default function EditPage() {
       }
     }
 
-    // 5. 逐帧绘制函数
+    // 处理 trim 区域
+    const trimRegions = regions.filter(r => r.type === 'trim');
+    trimRegions.sort((a, b) => a.start - b.start);
+
+    // 生成所有导出帧的时间戳（trim 区域外的每一帧）
+    const video = videoRef.current;
+    let frameTimes: number[] = [];
+    if ('requestVideoFrameCallback' in video) {
+      // 现代浏览器：用 requestVideoFrameCallback
+      let t = 0;
+      while (t < duration) {
+        // 跳过 trim 区域
+        const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
+        if (!inTrim) frameTimes.push(t);
+        t += 1 / videoFrameRate;
+      }
+    } else {
+      // fallback: 用小步长采样
+      let t = 0;
+      while (t < duration) {
+        const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
+        if (!inTrim) frameTimes.push(t);
+        t += 1 / videoFrameRate;
+      }
+    }
+    const totalFrames = frameTimes.length;
+
+    // 设置 MediaRecorder
+    let stopped = false;
+    let recordedChunks: Blob[] = [];
+    const streamOut = canvas.captureStream(videoFrameRate);
+    const recorder = new MediaRecorder(streamOut, { mimeType: 'video/webm' });
+    recorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exported-video-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setProgress(100);
+      setIsProcessing(false);
+      toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
+    };
+
+    // 逐帧绘制函数
     let exportIndex = 0;
     const drawFrame = async () => {
       if (!videoRef.current || stopped) return;
-      const video = videoRef.current;
-      if (exportIndex >= exportTotal) {
+      if (exportIndex >= totalFrames) {
         stopped = true;
         recorder.stop();
         return;
       }
-      const time = exportTimes[exportIndex];
+      const time = frameTimes[exportIndex];
       video.currentTime = time;
       await new Promise<void>(resolve => {
         const onSeeked = () => {
@@ -585,30 +609,24 @@ export default function EditPage() {
           } else {
             ctx.clearRect(0, 0, width, height);
           }
-
           // 2. zoom 效果
-          // 找到当前帧所在的 zoom 区域
           const zoomRegion = regions.find(r => r.type === 'zoom' && time >= r.start && time < r.end);
           if (zoomRegion && zoomRegion.zoomCenter) {
             const zoomLevel = zoomRegion.zoomLevel || 1.5;
-            // zoomCenter: {x, y} 百分比
             const cx = (zoomRegion.zoomCenter.x / 100) * video.videoWidth;
             const cy = (zoomRegion.zoomCenter.y / 100) * video.videoHeight;
-            // 计算缩放后要裁剪的区域
             const sw = video.videoWidth / zoomLevel;
             const sh = video.videoHeight / zoomLevel;
             const sx = Math.max(0, cx - sw / 2);
             const sy = Math.max(0, cy - sh / 2);
-            // 保证不超出边界
             const sxClamped = Math.min(Math.max(0, sx), video.videoWidth - sw);
             const syClamped = Math.min(Math.max(0, sy), video.videoHeight - sh);
             ctx.drawImage(
               video,
-              sxClamped, syClamped, sw, sh, // 源
-              0, 0, width, height // 目标
+              sxClamped, syClamped, sw, sh,
+              0, 0, width, height
             );
           } else {
-            // 无 zoom 区域，正常全画面
             ctx.drawImage(video, 0, 0, width, height);
           }
           video.removeEventListener('seeked', onSeeked);
@@ -616,12 +634,12 @@ export default function EditPage() {
         };
         video.addEventListener('seeked', onSeeked);
       });
-      setProgress(Math.round((exportIndex / exportTotal) * 90));
+      setProgress(Math.round((exportIndex / totalFrames) * 90));
       exportIndex++;
       requestAnimationFrame(drawFrame);
     };
 
-    // 6. 启动录制和绘制
+    // 启动录制和绘制
     recorder.start();
     drawFrame();
   };
