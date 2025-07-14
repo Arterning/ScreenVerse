@@ -473,7 +473,7 @@ export default function EditPage() {
       canvas = document.createElement('canvas');
       canvasRef.current = canvas;
     }
-    // 设置导出分辨率（以 1920x1080 为例，可根据 aspectRatio 动态调整）
+    // 提升分辨率为 1080p（可根据 aspectRatio 动态调整）
     let width = 1920, height = 1080;
     switch (aspectRatio) {
       case '16:9': width = 1920; height = 1080; break;
@@ -492,7 +492,7 @@ export default function EditPage() {
     }
 
     // 2. 逐帧渲染
-    const fps = 30;
+    const fps = 60; // 提升帧率
     const totalFrames = Math.floor(duration * fps);
     let currentFrame = 0;
     let recordedChunks: Blob[] = [];
@@ -518,35 +518,110 @@ export default function EditPage() {
       toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
     };
 
-    // 4. 逐帧绘制函数
+    // 4. 处理 trim 区域，生成导出帧时间列表
+    const trimRegions = regions.filter(r => r.type === 'trim');
+    // 先将 trim 区域按起始排序
+    trimRegions.sort((a, b) => a.start - b.start);
+    // 生成所有导出帧的时间戳
+    let exportTimes: number[] = [];
+    for (let f = 0; f < totalFrames; f++) {
+      const t = f / fps;
+      // 判断 t 是否在任何 trim 区域内
+      const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
+      if (!inTrim) exportTimes.push(t);
+    }
+    const exportTotal = exportTimes.length;
+
+    // 预处理背景图片（如有）
+    let bgImage: HTMLImageElement | null = null;
+    if (background && background !== 'none' && background !== 'black' && background !== 'white') {
+      let bgUrl = '';
+      if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
+        const presetBackgrounds = {
+          'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&h=1080&fit=crop',
+          'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=1920&h=1080&fit=crop',
+          'neon-purple': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1920&h=1080&fit=crop',
+          'matrix-green': 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=1920&h=1080&fit=crop',
+          'futuristic-orange': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop'
+        };
+        bgUrl = presetBackgrounds[background as keyof typeof presetBackgrounds] || '';
+      } else if (customBackgroundFile) {
+        bgUrl = URL.createObjectURL(customBackgroundFile);
+      }
+      if (bgUrl) {
+        bgImage = new window.Image();
+        bgImage.src = bgUrl;
+        // 等待图片加载
+        await new Promise<void>(resolve => {
+          bgImage!.onload = () => resolve();
+          bgImage!.onerror = () => resolve();
+        });
+      }
+    }
+
+    // 5. 逐帧绘制函数
+    let exportIndex = 0;
     const drawFrame = async () => {
       if (!videoRef.current || stopped) return;
       const video = videoRef.current;
-      // 计算当前帧时间
-      const time = currentFrame / fps;
+      if (exportIndex >= exportTotal) {
+        stopped = true;
+        recorder.stop();
+        return;
+      }
+      const time = exportTimes[exportIndex];
       video.currentTime = time;
       await new Promise<void>(resolve => {
         const onSeeked = () => {
-          // 清空画布
-          ctx.clearRect(0, 0, width, height);
-          // 画视频帧（后续可加 zoom/背景等）
-          ctx.drawImage(video, 0, 0, width, height);
+          // 1. 绘制背景
+          if (background === 'black') {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+          } else if (background === 'white') {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, width, height);
+          } else if (bgImage) {
+            ctx.drawImage(bgImage, 0, 0, width, height);
+          } else {
+            ctx.clearRect(0, 0, width, height);
+          }
+
+          // 2. zoom 效果
+          // 找到当前帧所在的 zoom 区域
+          const zoomRegion = regions.find(r => r.type === 'zoom' && time >= r.start && time < r.end);
+          if (zoomRegion && zoomRegion.zoomCenter) {
+            const zoomLevel = zoomRegion.zoomLevel || 1.5;
+            // zoomCenter: {x, y} 百分比
+            const cx = (zoomRegion.zoomCenter.x / 100) * video.videoWidth;
+            const cy = (zoomRegion.zoomCenter.y / 100) * video.videoHeight;
+            // 计算缩放后要裁剪的区域
+            const sw = video.videoWidth / zoomLevel;
+            const sh = video.videoHeight / zoomLevel;
+            const sx = Math.max(0, cx - sw / 2);
+            const sy = Math.max(0, cy - sh / 2);
+            // 保证不超出边界
+            const sxClamped = Math.min(Math.max(0, sx), video.videoWidth - sw);
+            const syClamped = Math.min(Math.max(0, sy), video.videoHeight - sh);
+            ctx.drawImage(
+              video,
+              sxClamped, syClamped, sw, sh, // 源
+              0, 0, width, height // 目标
+            );
+          } else {
+            // 无 zoom 区域，正常全画面
+            ctx.drawImage(video, 0, 0, width, height);
+          }
           video.removeEventListener('seeked', onSeeked);
           resolve();
         };
         video.addEventListener('seeked', onSeeked);
       });
-      setProgress(Math.round((currentFrame / totalFrames) * 90));
-      currentFrame++;
-      if (currentFrame < totalFrames) {
-        requestAnimationFrame(drawFrame);
-      } else {
-        stopped = true;
-        recorder.stop();
-      }
+      setProgress(Math.round((exportIndex / exportTotal) * 90));
+      exportIndex++;
+      requestAnimationFrame(drawFrame);
     };
 
-    // 5. 启动录制和绘制
+    // 6. 启动录制和绘制
     recorder.start();
     drawFrame();
   };
