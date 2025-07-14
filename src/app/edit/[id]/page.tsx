@@ -29,6 +29,7 @@ export default function EditPage() {
   const [progress, setProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // 时间轴相关状态
   const [regions, setRegions] = useState<TimelineRegion[]>([]);
@@ -456,285 +457,98 @@ export default function EditPage() {
     toast({ title: 'Trimming complete!', description: 'Your video has been trimmed.' });
   };
 
-  // 导出功能 - 应用 Zoom 和 Trim 效果
+  // 导出功能 - Canvas 逐帧渲染与录制
   const handleExport = async () => {
-    if (!ffmpegRef.current || !videoUrl || !ffmpegRef.current.loaded) {
-      toast({ title: 'FFmpeg not loaded', variant: 'destructive' });
+    if (!videoRef.current || !videoUrl) {
+      toast({ title: '视频未加载', variant: 'destructive' });
       return;
     }
 
     setIsProcessing(true);
     setProgress(0);
-    
-    const ffmpeg = ffmpegRef.current;
-    const inputFileName = 'input.webm';
-    const outputFileName = 'exported.mp4';
 
-    try {
-      await ffmpeg.writeFile(inputFileName, await fetchFile(videoUrl));
-      setProgress(10);
-
-      // 构建 FFmpeg 命令
-      const zoomRegions = regions.filter(r => r.type === 'zoom');
-      const trimRegions = regions.filter(r => r.type === 'trim');
-      
-      // 处理 Trim 区域 - 构建分段
-      let segments = [];
-      if (trimRegions.length > 0) {
-        trimRegions.sort((a, b) => a.start - b.start);
-        
-        let lastEnd = 0;
-        for (const trim of trimRegions) {
-          if (trim.start > lastEnd) {
-            segments.push({ start: lastEnd, end: trim.start });
-          }
-          lastEnd = trim.end;
-        }
-        
-        if (lastEnd < duration) {
-          segments.push({ start: lastEnd, end: duration });
-        }
-        
-        if (segments.length === 0) {
-          segments = [{ start: 0, end: duration }];
-        }
-      } else {
-        segments = [{ start: 0, end: duration }];
-      }
-      
-      console.log('Trim regions:', trimRegions);
-      console.log('Segments:', segments);
-      console.log('Zoom regions:', zoomRegions);
-      
-      // 处理 Aspect ratio
-      let scaleFilter = '';
-      switch (aspectRatio) {
-        case '16:9':
-          scaleFilter = 'scale=1920:1080';
-          break;
-        case '4:3':
-          scaleFilter = 'scale=1440:1080';
-          break;
-        case '1:1':
-          scaleFilter = 'scale=1080:1080';
-          break;
-        case '9:16':
-          scaleFilter = 'scale=1080:1920';
-          break;
-        default:
-          scaleFilter = 'scale=1920:1080';
-      }
-      
-      // 处理背景
-      let hasBackground = false;
-      let backgroundFilter = '';
-      
-      if (background === 'black') {
-        backgroundFilter = 'pad=iw:ih:0:0:black';
-      } else if (background === 'white') {
-        backgroundFilter = 'pad=iw:ih:0:0:white';
-      } else if (background.startsWith('tech-') || background.startsWith('cyber-') || background.startsWith('neon-') || background.startsWith('matrix-') || background.startsWith('futuristic-')) {
-        const presetBackgrounds = {
-          'tech-blue': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
-          'cyber-grid': 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop',
-          'neon-purple': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop',
-          'matrix-green': 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop',
-          'futuristic-orange': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
-        };
-        
-        const bgUrl = presetBackgrounds[background as keyof typeof presetBackgrounds];
-        if (bgUrl) {
-          try {
-            const bgResponse = await fetch(bgUrl);
-            const bgBlob = await bgResponse.blob();
-            const bgBuffer = await bgBlob.arrayBuffer();
-            await ffmpeg.writeFile('background.jpg', new Uint8Array(bgBuffer));
-            hasBackground = true;
-            setProgress(20);
-            console.log('Background image loaded successfully');
-          } catch (error) {
-            console.error('Failed to load background image:', error);
-            hasBackground = false;
-          }
-        }
-      }
-      
-      console.log('Background setting:', background);
-      console.log('Has background:', hasBackground);
-      
-      // 修复的 Zoom 滤镜构建逻辑
-      let filterChain = '';
-      let useComplexFilter = false;
-      
-      if (zoomRegions.length > 0) {
-        useComplexFilter = true;
-        
-        // 构建 zoom 滤镜 - 简化版本，更可靠
-        let zoomFilter = '[0:v]';
-        
-        // 为每个 zoom 区域构建滤镜
-        for (let i = 0; i < zoomRegions.length; i++) {
-          const zoom = zoomRegions[i];
-          const startTime = Math.round(zoom.start * 100) / 100;
-          const endTime = Math.round(zoom.end * 100) / 100;
-          const zoomLevel = zoom.level || 1.5; // 允许自定义缩放级别
-          
-          // 获取鼠标位置（如果有的话）
-          const mouseX = zoom.mouseX || 0.5; // 默认中心点
-          const mouseY = zoom.mouseY || 0.5;
-          
-          // 构建单个 zoom 效果的滤镜
-          // 使用 zoompan 滤镜更简单可靠
-          const zoomPanFilter = `zoompan=z='if(between(t,${startTime},${endTime}),${zoomLevel},1)':x='if(between(t,${startTime},${endTime}),iw*${mouseX}-iw*${mouseX}/zoom,iw/2-iw/2/zoom)':y='if(between(t,${startTime},${endTime}),ih*${mouseY}-ih*${mouseY}/zoom,ih/2-ih/2/zoom)':d=1:s=${scaleFilter.split('=')[1]}`;
-          
-          if (i === 0) {
-            zoomFilter += zoomPanFilter;
-          } else {
-            // 如果有多个 zoom 区域，需要更复杂的处理
-            // 这里简化为使用最后一个 zoom 设置
-            zoomFilter = '[0:v]' + zoomPanFilter;
-          }
-        }
-        
-        filterChain = zoomFilter;
-        console.log('Zoom filter chain:', filterChain);
-      } else {
-        // 没有 zoom 效果时的简单处理
-        filterChain = scaleFilter;
-        if (backgroundFilter) {
-          filterChain += `,${backgroundFilter}`;
-        }
-        console.log('Simple filter chain:', filterChain);
-      }
-      
-      setProgress(30);
-      
-      // 处理分段导出
-      if (segments.length > 1) {
-        // 多个分段处理
-        const segmentFiles = [];
-        const totalSegments = segments.length;
-        
-        for (let i = 0; i < segments.length; i++) {
-          const segment = segments[i];
-          const segmentFileName = `segment_${i}.mp4`;
-          
-          const segmentArgs = [
-            '-ss', segment.start.toString(),
-            '-i', inputFileName,
-            '-t', (segment.end - segment.start).toString()
-          ];
-          
-          // 添加滤镜
-          if (filterChain) {
-            if (useComplexFilter) {
-              segmentArgs.push('-filter_complex', filterChain);
-            } else {
-              segmentArgs.push('-vf', filterChain);
-            }
-          }
-          
-          // 添加编码参数
-          segmentArgs.push(
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '23',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            segmentFileName
-          );
-          
-          console.log(`Segment ${i} args:`, segmentArgs);
-          await ffmpeg.exec(segmentArgs);
-          segmentFiles.push(segmentFileName);
-          
-          const segmentProgress = 30 + (i + 1) * (50 / totalSegments);
-          setProgress(Math.round(segmentProgress));
-        }
-        
-        // 创建文件列表并合并
-        const fileList = segmentFiles.map(f => `file '${f}'`).join('\n');
-        await ffmpeg.writeFile('filelist.txt', fileList);
-        
-        setProgress(80);
-        
-        await ffmpeg.exec([
-          '-f', 'concat',
-          '-safe', '0',
-          '-i', 'filelist.txt',
-          '-c', 'copy',
-          outputFileName
-        ]);
-      } else {
-        // 单个分段处理
-        const segment = segments[0];
-        const execArgs = ['-i', inputFileName];
-        
-        // 添加时间裁剪
-        if (segment.start > 0) {
-          execArgs.push('-ss', segment.start.toString());
-        }
-        if (segment.end < duration) {
-          execArgs.push('-t', (segment.end - segment.start).toString());
-        }
-        
-        // 添加滤镜
-        if (filterChain) {
-          if (useComplexFilter) {
-            execArgs.push('-filter_complex', filterChain);
-          } else {
-            execArgs.push('-vf', filterChain);
-          }
-        }
-        
-        // 添加编码参数
-        execArgs.push(
-          '-c:v', 'libx264',
-          '-preset', 'fast',
-          '-crf', '23',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-movflags', 'faststart',
-          outputFileName
-        );
-        
-        setProgress(50);
-        console.log('FFmpeg args:', execArgs);
-        await ffmpeg.exec(execArgs);
-        setProgress(80);
-      }
-      
-      setProgress(90);
-      
-      try {
-        const data = await ffmpeg.readFile(outputFileName);
-        const blob = new Blob([data], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
-        
-        // 创建下载链接
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `edited-video-${Date.now()}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // 清理内存
-        URL.revokeObjectURL(url);
-
-        setProgress(100);
-        setIsProcessing(false);
-        toast({ title: 'Export complete!', description: 'Your video has been exported with all effects applied.' });
-      } catch (readError) {
-        console.error('Failed to read output file:', readError);
-        setIsProcessing(false);
-        toast({ title: 'Export failed', description: 'Failed to read output file.', variant: 'destructive' });
-      }
-    } catch (error) {
-      console.error('Export error:', error);
-      setIsProcessing(false);
-      toast({ title: 'Export failed', description: 'Failed to export video.', variant: 'destructive' });
+    // 1. 创建/获取 canvas
+    let canvas = canvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvasRef.current = canvas;
     }
+    // 设置导出分辨率（以 1920x1080 为例，可根据 aspectRatio 动态调整）
+    let width = 1920, height = 1080;
+    switch (aspectRatio) {
+      case '16:9': width = 1920; height = 1080; break;
+      case '4:3': width = 1440; height = 1080; break;
+      case '1:1': width = 1080; height = 1080; break;
+      case '9:16': width = 1080; height = 1920; break;
+      default: width = 1920; height = 1080;
+    }
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      toast({ title: 'Canvas 初始化失败', variant: 'destructive' });
+      setIsProcessing(false);
+      return;
+    }
+
+    // 2. 逐帧渲染
+    const fps = 30;
+    const totalFrames = Math.floor(duration * fps);
+    let currentFrame = 0;
+    let recordedChunks: Blob[] = [];
+    let stopped = false;
+
+    // 3. 设置 MediaRecorder
+    const stream = canvas.captureStream(fps);
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    recorder.ondataavailable = e => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exported-video-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setProgress(100);
+      setIsProcessing(false);
+      toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
+    };
+
+    // 4. 逐帧绘制函数
+    const drawFrame = async () => {
+      if (!videoRef.current || stopped) return;
+      const video = videoRef.current;
+      // 计算当前帧时间
+      const time = currentFrame / fps;
+      video.currentTime = time;
+      await new Promise<void>(resolve => {
+        const onSeeked = () => {
+          // 清空画布
+          ctx.clearRect(0, 0, width, height);
+          // 画视频帧（后续可加 zoom/背景等）
+          ctx.drawImage(video, 0, 0, width, height);
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+      });
+      setProgress(Math.round((currentFrame / totalFrames) * 90));
+      currentFrame++;
+      if (currentFrame < totalFrames) {
+        requestAnimationFrame(drawFrame);
+      } else {
+        stopped = true;
+        recorder.stop();
+      }
+    };
+
+    // 5. 启动录制和绘制
+    recorder.start();
+    drawFrame();
   };
 
 
