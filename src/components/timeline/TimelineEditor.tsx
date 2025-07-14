@@ -11,6 +11,7 @@ export type TimelineRegion = {
   zoomCenter?: { x: number; y: number }; // 鼠标坐标（相对于视频的百分比）
   zoomSize?: { width: number; height: number }; // 放大区域大小（像素）
   zoomLevel?: number; // 新增：放大级别 (1.0-3.0)
+  zoomType?: 'mouse' | 'custom'; // 新增：zoom 区域类型
 };
 
 interface TimelineEditorProps {
@@ -215,6 +216,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               }`}>
                 {region.type === 'zoom' ? (region.active ? 'ACTIVE' : 'ZOOM') : 'TRIM'}
               </span>
+              {/* 新增：显示 zoomType */}
+              {region.type === 'zoom' && region.zoomType && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{region.zoomType === 'mouse' ? '鼠标点击' : '自定义'}</span>
+              )}
             </div>
             {/* 右 handle */}
             <div

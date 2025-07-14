@@ -36,6 +36,10 @@ export function useRecording() {
   const fullScreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
 
+  // Zoom 区域自动捕获（录屏时鼠标点击）
+  const autoZoomRegionsRef = useRef<any[]>([]); // [{time, x, y}]
+  const recordingStartTimeRef = useRef<number | null>(null);
+
   useEffect(() => {
     setIsClient(true);
     // Initialize the hidden video element on the client
@@ -235,14 +239,35 @@ export function useRecording() {
     toast,
   ]);
   
+  // 导出自动捕获的 zoom 区域（供录屏结束后同步到编辑器）
+  const getAutoZoomRegions = useCallback(() => {
+    return autoZoomRegionsRef.current.map(z => ({
+      id: `zoom-mouse-${Math.floor(z.time * 1000)}`,
+      type: 'zoom',
+      zoomType: 'mouse',
+      start: Math.max(0, z.time - 0.1),
+      end: z.time + 0.3,
+      zoomCenter: { x: z.x, y: z.y },
+      zoomLevel: 1.5,
+      zoomSize: { width: 200, height: 200 },
+    }));
+  }, []);
+
   const stopRecording = useCallback(() => {
     if (
       mediaRecorderRef.current?.state === "recording" ||
       mediaRecorderRef.current?.state === "paused"
     ) {
       mediaRecorderRef.current.stop();
+      // 录屏结束时保存自动 zoom 区域到 localStorage
+      const autoZooms = getAutoZoomRegions();
+      if (autoZooms && autoZooms.length > 0) {
+        localStorage.setItem('autoZoomRegions', JSON.stringify(autoZooms));
+      } else {
+        localStorage.removeItem('autoZoomRegions');
+      }
     }
-  }, []);
+  }, [getAutoZoomRegions]);
 
   const pauseRecording = () => {
     if (mediaRecorderRef.current?.state === "recording") {
@@ -377,6 +402,27 @@ export function useRecording() {
     }
   };
 
+  // 录屏时全局监听鼠标点击
+  useEffect(() => {
+    if (status === 'recording') {
+      recordingStartTimeRef.current = Date.now();
+      const handleGlobalClick = (e: MouseEvent) => {
+        // 计算录屏进度（秒）
+        const now = Date.now();
+        const time = ((now - (recordingStartTimeRef.current || now)) / 1000);
+        // 屏幕坐标转百分比
+        const x = (e.clientX / window.innerWidth) * 100;
+        const y = (e.clientY / window.innerHeight) * 100;
+        autoZoomRegionsRef.current.push({ time, x, y });
+      };
+      window.addEventListener('mousedown', handleGlobalClick);
+      return () => {
+        window.removeEventListener('mousedown', handleGlobalClick);
+        recordingStartTimeRef.current = null;
+      };
+    }
+  }, [status]);
+
   useEffect(() => {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
@@ -427,5 +473,6 @@ export function useRecording() {
     resumeRecording,
     handleDownload,
     isClient,
+    getAutoZoomRegions, // 新增：导出自动 zoom 区域
   };
 }

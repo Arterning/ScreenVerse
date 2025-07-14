@@ -394,6 +394,26 @@ export default function EditPage() {
     loadFFmpeg();
   }, [params.id, router, toast]);
 
+  // 自动同步 localStorage 的 autoZoomRegions 到 regions
+  useEffect(() => {
+    const autoZoomRaw = localStorage.getItem('autoZoomRegions');
+    if (autoZoomRaw) {
+      try {
+        const autoZooms = JSON.parse(autoZoomRaw);
+        if (Array.isArray(autoZooms) && autoZooms.length > 0) {
+          setRegions(prev => {
+            // 避免重复添加
+            const prevIds = new Set(prev.map(r => r.id));
+            const filtered = autoZooms.filter((z: any) => !prevIds.has(z.id));
+            return [...prev, ...filtered];
+          });
+        }
+      } catch {}
+      // 只用一次后清理，避免下次重复
+      localStorage.removeItem('autoZoomRegions');
+    }
+  }, []);
+
   const handleLoadedMetadata = () => {
     const video = videoRef.current;
     if (video) {
