@@ -219,8 +219,21 @@ export async function clearDB(): Promise<void> {
 async function getVideoDuration(videoBlob: Blob): Promise<number> {
   return new Promise((resolve) => {
     const video = document.createElement('video');
+    video.preload = 'metadata';
     video.onloadedmetadata = () => {
-      resolve(video.duration);
+      // 兼容 duration 为 Infinity 的情况
+      if (isFinite(video.duration) && !isNaN(video.duration) && video.duration > 0) {
+        resolve(video.duration);
+      } else {
+        // 监听 durationchange 直到 duration 有效
+        const onDurationChange = () => {
+          if (isFinite(video.duration) && !isNaN(video.duration) && video.duration > 0) {
+            video.removeEventListener('durationchange', onDurationChange);
+            resolve(video.duration);
+          }
+        };
+        video.addEventListener('durationchange', onDurationChange);
+      }
     };
     video.src = URL.createObjectURL(videoBlob);
   });
