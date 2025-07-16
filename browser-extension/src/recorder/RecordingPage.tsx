@@ -2,7 +2,24 @@ import React from 'react';
 import { useExtensionRecording } from './useExtensionRecording';
 
 const RecordingPage: React.FC = () => {
-  const { status, videoUrl, startRecording, stopRecording, handleDownload } = useExtensionRecording();
+  const { status, videoUrl, startRecording, stopRecording, handleDownload, clicks } = useExtensionRecording();
+
+  // 编辑按钮逻辑
+  const handleEdit = async () => {
+    if (!videoUrl) return;
+    // 获取 Blob
+    const blob = await fetch(videoUrl).then(r => r.blob());
+    // 打开 Web 编辑页面
+    const win = window.open('http://localhost:9200/edit/import', '_blank');
+    if (!win) {
+      alert('无法打开编辑页面，请检查浏览器弹窗设置');
+      return;
+    }
+    // 发送数据（延迟确保页面加载）
+    setTimeout(() => {
+      win.postMessage({ videoBlob: blob, clicks }, '*');
+    }, 800);
+  };
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -20,7 +37,10 @@ const RecordingPage: React.FC = () => {
         {status === 'preview' && videoUrl && (
           <>
             <video src={videoUrl} controls style={{ width: '100%', borderRadius: 8, marginBottom: 16 }} />
-            <button onClick={handleDownload} style={{ fontSize: 18, padding: '10px 28px', borderRadius: 8, background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>下载录制视频</button>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <button onClick={handleDownload} style={{ fontSize: 18, padding: '10px 28px', borderRadius: 8, background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>下载录制视频</button>
+              <button onClick={handleEdit} style={{ fontSize: 18, padding: '10px 28px', borderRadius: 8, background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>编辑</button>
+            </div>
           </>
         )}
       </div>
