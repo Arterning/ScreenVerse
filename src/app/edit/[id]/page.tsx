@@ -165,14 +165,46 @@ export default function EditPage() {
   };
 
   const currentZoomRegion = getCurrentZoomRegion();
-  const videoStyle = currentZoomRegion ? {
-    transform: `scale(${currentZoomRegion.zoomLevel || 1.5})`,
-    transformOrigin: `${currentZoomRegion.zoomCenter?.x || 50}% ${currentZoomRegion.zoomCenter?.y || 50}%`,
-    transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-  } : {
-    transform: 'scale(1)',
-    transition: 'transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+
+  const useVideoZoomOptimized = () => {
+    const [zoomStyle, setZoomStyle] = useState({});
+    const lastZoomCenterRef = useRef({ x: 50, y: 50 });
+    
+    useEffect(() => {
+      const baseStyle = {
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+      };
+      
+      if (currentZoomRegion) {
+        // 更新缩放中心点
+        lastZoomCenterRef.current = {
+          x: currentZoomRegion.zoomCenter?.x || 50,
+          y: currentZoomRegion.zoomCenter?.y || 50
+        };
+        
+        setZoomStyle({
+          ...baseStyle,
+          transform: `scale(${currentZoomRegion.zoomLevel || 1.5})`,
+          transformOrigin: `${lastZoomCenterRef.current.x}% ${lastZoomCenterRef.current.y}%`,
+          transition: 'transform 0.78s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        });
+      } else {
+        // 缩小时保持相同的缩放中心，避免跳跃
+        setZoomStyle({
+          ...baseStyle,
+          transform: 'scale(1)',
+          transformOrigin: `${lastZoomCenterRef.current.x}% ${lastZoomCenterRef.current.y}%`,
+          transition: 'transform 0.63s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        });
+      }
+    }, [currentZoomRegion]);
+    
+    return zoomStyle;
   };
+
+  const videoStyle = useVideoZoomOptimized();
+  
 
   // 视频播放状态变化处理
   const handlePlay = () => setIsPlaying(true);
