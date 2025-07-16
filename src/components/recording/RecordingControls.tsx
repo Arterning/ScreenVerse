@@ -52,7 +52,8 @@ export default function RecordingControls({
   videoUrl,
   settings,
   setSettings,
-}: RecordingControlsProps) {
+  duration = 0,
+}: RecordingControlsProps & { duration?: number }) {
   const router = useRouter();
   const { toast } = useToast();
   
@@ -69,7 +70,7 @@ export default function RecordingControls({
       try {
         const response = await fetch(videoUrl);
         const blob = await response.blob();
-        await saveVideoToDB(blob);
+        await saveVideoToDB(blob, undefined, duration);
         router.push('/edit');
       } catch (error) {
         console.error("Failed to save video to DB:", error);
@@ -87,7 +88,7 @@ export default function RecordingControls({
       try {
         const response = await fetch(videoUrl);
         const blob = await response.blob();
-        await saveVideoToDB(blob);
+        await saveVideoToDB(blob, undefined, duration);
         toast({
           title: "保存成功",
           description: "录屏已保存到您的库中",

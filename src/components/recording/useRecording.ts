@@ -24,6 +24,7 @@ export function useRecording() {
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -116,6 +117,7 @@ export function useRecording() {
     setStatus("recording");
     recordedChunksRef.current = [];
     setVideoUrl(null);
+    recordingStartTimeRef.current = Date.now(); // 录制开始时间
   
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
@@ -266,6 +268,12 @@ export function useRecording() {
       } else {
         localStorage.removeItem('autoZoomRegions');
       }
+    }
+    // 录制结束时间
+    if (recordingStartTimeRef.current) {
+      const endTime = Date.now();
+      const duration = (endTime - recordingStartTimeRef.current) / 1000; // 秒
+      setRecordingDuration(duration);
     }
   }, [getAutoZoomRegions]);
 
@@ -474,5 +482,6 @@ export function useRecording() {
     handleDownload,
     isClient,
     getAutoZoomRegions, // 新增：导出自动 zoom 区域
+    recordingDuration, // 新增：录制时长
   };
 }

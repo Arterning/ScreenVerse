@@ -80,38 +80,28 @@ async function generateThumbnail(videoBlob: Blob): Promise<string> {
   });
 }
 
-export async function saveVideoToDB(blob: Blob, title?: string): Promise<string> {
+export async function saveVideoToDB(blob: Blob, title?: string, duration?: number): Promise<string> {
   const db = await getDB();
   const id = generateId();
+  // 先生成缩略图
+  const thumbnail = await generateThumbnail(blob);
   const metadata: RecordingMetadata = {
     id,
     title: title || `录屏 ${new Date().toLocaleString('zh-CN')}`,
     createdAt: Date.now(),
-    duration: 0, // 稍后更新
+    duration: duration ?? 0, // 用传入的 duration，没有就为 0
     size: blob.size,
+    thumbnail,
   };
-  
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     try {
-      // 先生成缩略图和获取时长
-      const thumbnail = await generateThumbnail(blob);
-      metadata.thumbnail = thumbnail;
-      
-      // 获取视频时长
-      const duration = await getVideoDuration(blob);
-      metadata.duration = duration;
-      
-      // 现在执行数据库操作
       const transaction = db.transaction([STORE_NAME, METADATA_STORE], 'readwrite');
       const videoStore = transaction.objectStore(STORE_NAME);
       const metadataStore = transaction.objectStore(METADATA_STORE);
-      
       // 保存视频数据
-      const videoRequest = videoStore.put(blob, id);
-      
+      videoStore.put(blob, id);
       // 保存元数据
-      const metadataRequest = metadataStore.put(metadata);
-      
+      metadataStore.put(metadata);
       transaction.oncomplete = () => resolve(id);
       transaction.onerror = (event) => reject((event.target as IDBRequest).error);
     } catch (error) {
