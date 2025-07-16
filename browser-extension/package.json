@@ -1,0 +1,23 @@
+{
+  "name": "screenverse-extension",
+  "version": "0.1.0",
+  "description": "ScreenVerse 浏览器录屏插件",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build:vite": "vite build",
+    "build:copy": "cpx manifest.json dist/ && cpx background.js dist/ && cpx icons dist/icons",
+    "build": "npm run build:vite && npm run build:copy"
+  },
+  "dependencies": {
+    "nextn": "file:..",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "cpx": "^1.5.0",
+    "typescript": "^5.0.0",
+    "vite": "^4.0.0"
+  }
+}
