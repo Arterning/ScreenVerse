@@ -70,8 +70,8 @@ export default function RecordingControls({
       try {
         const response = await fetch(videoUrl);
         const blob = await response.blob();
-        await saveVideoToDB(blob, undefined, duration);
-        router.push('/edit');
+        const id = await saveVideoToDB(blob, undefined, duration);
+        router.push(`/edit/${id}`);
       } catch (error) {
         console.error("Failed to save video to DB:", error);
         toast({
@@ -127,7 +127,7 @@ export default function RecordingControls({
                 <SelectContent>
                   <SelectItem value="video/webm">WebM (Recommended)</SelectItem>
                   <SelectItem value="video/mp4">MP4</SelectItem>
-                  <SelectItem value="image/gif">GIF</SelectItem>
+                  {/* <SelectItem value="image/gif">GIF</SelectItem> */}
                 </SelectContent>
               </Select>
             </div>
@@ -190,36 +190,36 @@ export default function RecordingControls({
           <CardContent className="space-y-4">
             <div className="flex w-full sm:w-auto gap-4">
               <Button
-                size="lg"
-                onClick={handleDownload}
-                className="flex-1 sm:flex-none"
-                disabled={status === 'converting'}
-              >
-                <Download className="mr-2 h-5 w-5" /> 
-                {status === 'converting' ? 'Converting...' : 'Download'}
-              </Button>
-               <Button
-                size="lg"
-                variant="secondary"
-                onClick={handleEdit}
-                className="flex-1 sm:flex-none"
-                disabled={status === 'converting'}
-              >
-                <Scissors className="mr-2 h-5 w-5" /> Edit
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="lg"
+                size="sm"
                 variant="outline"
                 onClick={handleSaveToLibrary}
                 className="flex-1"
                 disabled={status === 'converting'}
               >
-                <Clapperboard className="mr-2 h-5 w-5" /> Save to Library
+                <Clapperboard className="mr-1 h-5 w-5" /> Save
+              </Button>
+               <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleEdit}
+                className="flex-1 sm:flex-none"
+                disabled={status === 'converting'}
+              >
+                <Scissors className="mr-1 h-5 w-5" />Edit
               </Button>
               <Button
-                size="lg"
+                size="sm"
+                onClick={handleDownload}
+                className="flex-1 sm:flex-none"
+                disabled={status === 'converting'}
+              >
+                <Download className="mr-1 h-5 w-5" /> 
+                {status === 'converting' ? 'Converting...' : 'Download'}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
                 variant="outline"
                 onClick={handleNewRecording}
                 className="flex-1"
