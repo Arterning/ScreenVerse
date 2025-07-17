@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Icons } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Video } from "lucide-react";
+import { Video, Settings } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -21,6 +21,10 @@ export function AppHeader() {
             <Link href="/recordings" className="flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary">
               <Video className="h-4 w-4" />
               <span className="hidden sm:inline-block">我的录屏</span>
+            </Link>
+            <Link href="/settings" className="flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline-block">设置</span>
             </Link>
           </nav>
           <div className="flex items-center space-x-2">
