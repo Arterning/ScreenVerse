@@ -5,8 +5,10 @@ import RecordingControls from "@/components/recording/RecordingControls";
 import { useRecording } from "@/components/recording/useRecording";
 import type { Settings } from "@/components/recording/types";
 import { Dispatch, SetStateAction } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function Home() {
+  const { t } = useLanguage();
   const {
     status,
     settings,

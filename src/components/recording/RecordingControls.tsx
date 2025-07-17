@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { saveVideoToDB } from "@/lib/db";
 import { useToast } from "@/hooks/use-toast";
 import type { RecordingStatus, Settings, ExportFormat } from "./types";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface RecordingControlsProps {
   status: RecordingStatus;
@@ -56,6 +57,7 @@ export default function RecordingControls({
 }: RecordingControlsProps & { duration?: number }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLanguage();
   
   const setExportFormat = (value: string) => {
     setSettings((prev) => ({ ...prev, exportFormat: value as ExportFormat }));
@@ -75,8 +77,8 @@ export default function RecordingControls({
       } catch (error) {
         console.error("Failed to save video to DB:", error);
         toast({
-          title: "Error preparing for edit",
-          description: "Could not save the video for the editor. Please try again.",
+          title: t('errorPrepareEdit'),
+          description: t('errorSaveEditor'),
           variant: "destructive",
         });
       }
@@ -90,14 +92,14 @@ export default function RecordingControls({
         const blob = await response.blob();
         await saveVideoToDB(blob, undefined, duration);
         toast({
-          title: "保存成功",
-          description: "录屏已保存到您的库中",
+          title: t('saveSuccess'),
+          description: t('saveToLibrary'),
         });
       } catch (error) {
         console.error("Failed to save video to library:", error);
         toast({
-          title: "保存失败",
-          description: "无法保存录屏到库中",
+          title: t('saveFailed'),
+          description: t('saveFailedDesc'),
           variant: "destructive",
         });
       }
@@ -111,28 +113,28 @@ export default function RecordingControls({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clapperboard className="h-5 w-5" />
-              Ready to Record
+              {t('readyToRecord')}
             </CardTitle>
             <CardDescription>
-              Configure your recording settings and start capturing your screen.
+              {t('configureRecordingSettings')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="export-format">Export Format</Label>
+              <Label htmlFor="export-format">{t('exportFormat')}</Label>
               <Select value={settings.exportFormat} onValueChange={setExportFormat}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="video/webm">WebM (Recommended)</SelectItem>
+                  <SelectItem value="video/webm">WebM ({t('recommended')})</SelectItem>
                   <SelectItem value="video/mp4">MP4</SelectItem>
                   {/* <SelectItem value="image/gif">GIF</SelectItem> */}
                 </SelectContent>
               </Select>
             </div>
             <Button onClick={startRecording} size="lg" className="w-full">
-              <Play className="mr-2 h-5 w-5" /> Start Recording
+              <Play className="mr-2 h-5 w-5" /> {t('startRecording')}
             </Button>
           </CardContent>
         </Card>
