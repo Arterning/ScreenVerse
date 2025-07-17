@@ -243,22 +243,26 @@ export default function RecordingsPage() {
                     )}
                   </CardTitle>
                   <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEdit(recording)}
-                      className="h-6 w-6 p-0"
-                    >
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(recording.id)}
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {editingId !== recording.id && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(recording)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(recording.id)}
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardHeader>
