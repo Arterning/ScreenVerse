@@ -37,7 +37,7 @@ export default function EditPage() {
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null); // 新增：激活的区域ID
   const [history, setHistory] = useState<TimelineRegion[][]>([]);
   const [redoStack, setRedoStack] = useState<TimelineRegion[][]>([]);
-  
+
   // 播放控制状态
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -47,7 +47,7 @@ export default function EditPage() {
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [background, setBackground] = useState('none');
   const [customBackgroundFile, setCustomBackgroundFile] = useState<File | null>(null);
-  
+
   // Zoom 设置状态
   const [isSettingZoomPosition, setIsSettingZoomPosition] = useState(false);
   const [pendingZoomRegion, setPendingZoomRegion] = useState<Partial<TimelineRegion> | null>(null);
@@ -73,12 +73,12 @@ export default function EditPage() {
     if (!videoRef.current) return;
     videoRef.current.currentTime = time;
     setCurrentTime(time);
-    
+
     // 检查是否点击了 Zoom 区域
-    const clickedRegion = regions.find(r => 
+    const clickedRegion = regions.find(r =>
       r.type === 'zoom' && time >= r.start && time <= r.end
     );
-    
+
     if (clickedRegion) {
       // 如果点击了 Zoom 区域，激活它并开始循环播放
       setActiveRegionId(clickedRegion.id);
@@ -103,9 +103,9 @@ export default function EditPage() {
   // 放大级别调整
   const handleZoomLevelChange = (level: number) => {
     if (!activeRegionId) return;
-    
-    setRegions(regions.map(region => 
-      region.id === activeRegionId 
+
+    setRegions(regions.map(region =>
+      region.id === activeRegionId
         ? { ...region, zoomLevel: level }
         : region
     ));
@@ -122,7 +122,7 @@ export default function EditPage() {
     if (!videoRef.current) return;
     const time = videoRef.current.currentTime;
     setCurrentTime(time);
-    
+
     // 检查是否在激活的 Zoom 区域内，如果是则循环播放
     if (activeRegionId && isLooping) {
       const activeRegion = regions.find(r => r.id === activeRegionId);
@@ -135,12 +135,12 @@ export default function EditPage() {
         return; // 在激活区域内，不处理其他逻辑
       }
     }
-    
+
     // 检查是否在 Trim 区域内，如果是则跳过
-    const currentTrimRegion = regions.find(r => 
+    const currentTrimRegion = regions.find(r =>
       r.type === 'trim' && time >= r.start && time <= r.end
     );
-    
+
     if (currentTrimRegion) {
       // 跳到 Trim 区域结束位置
       videoRef.current.currentTime = currentTrimRegion.end;
@@ -157,9 +157,9 @@ export default function EditPage() {
         return activeRegion;
       }
     }
-    
+
     // 否则查找当前时间所在的 Zoom 区域
-    return regions.find(r => 
+    return regions.find(r =>
       r.type === 'zoom' && currentTime >= r.start && currentTime <= r.end
     );
   };
@@ -169,20 +169,20 @@ export default function EditPage() {
   const useVideoZoomOptimized = () => {
     const [zoomStyle, setZoomStyle] = useState({});
     const lastZoomCenterRef = useRef({ x: 50, y: 50 });
-    
+
     useEffect(() => {
       const baseStyle = {
         willChange: 'transform',
         backfaceVisibility: 'hidden',
       };
-      
+
       if (currentZoomRegion) {
         // 更新缩放中心点
         lastZoomCenterRef.current = {
           x: currentZoomRegion.zoomCenter?.x || 50,
           y: currentZoomRegion.zoomCenter?.y || 50
         };
-        
+
         setZoomStyle({
           ...baseStyle,
           transform: `scale(${currentZoomRegion.zoomLevel || 1.5})`,
@@ -199,40 +199,40 @@ export default function EditPage() {
         });
       }
     }, [currentZoomRegion]);
-    
+
     return zoomStyle;
   };
 
   const videoStyle = useVideoZoomOptimized();
-  
+
 
   // 视频播放状态变化处理
   const handlePlay = () => setIsPlaying(true);
   const handlePause = () => setIsPlaying(false);
-  
+
   // 视频点击事件处理
   const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
     console.log('Video clicked!', { isSettingZoomPosition, pendingZoomRegion });
-    
+
     if (!isSettingZoomPosition || !pendingZoomRegion) {
       console.log('Not in zoom setting mode or no pending region');
       return;
     }
-    
+
     const videoElement = e.currentTarget;
     const rect = videoElement.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
+
     console.log('Click coordinates:', { x, y, clientX: e.clientX, clientY: e.clientY, rect });
-    
+
     // 创建完整的 Zoom 区域
     const newRegion: TimelineRegion = {
       ...pendingZoomRegion,
       zoomCenter: { x, y },
       zoomLevel: 1.5, // 默认放大级别
     } as TimelineRegion;
-    
+
     // 添加到区域列表
     setHistory(h => [...h, regions]);
     setRegions([...regions, newRegion]);
@@ -241,18 +241,18 @@ export default function EditPage() {
     setActiveRegionId(newRegion.id);
     setIsLooping(true);
     setRedoStack([]);
-    
+
     // 退出设置模式
     setIsSettingZoomPosition(false);
     setPendingZoomRegion(null);
-    
+
     // 显示成功提示
     toast({
       title: '放大区域已添加',
       description: `放大中心点设置在 (${Math.round(x)}%, ${Math.round(y)}%)，可以继续播放视频查看效果`,
     });
   };
-  
+
   // 取消设置 Zoom 位置
   const handleCancelZoomPosition = () => {
     setIsSettingZoomPosition(false);
@@ -275,15 +275,15 @@ export default function EditPage() {
     const len = duration / 50; // 区间长度为视频总长的1/50
     const start = currentTime; // 开始时间就是当前暂停的时间
     const end = Math.min(duration, start + len);
-    
+
     console.log('Adding zoom region:', { start, end, currentTime, duration, len });
-    
+
     // 暂停视频播放
     if (videoRef.current && !videoRef.current.paused) {
       videoRef.current.pause();
       setIsPlaying(false);
     }
-    
+
     // 进入设置 Zoom 位置模式
     setIsSettingZoomPosition(true);
     setPendingZoomRegion({
@@ -293,15 +293,17 @@ export default function EditPage() {
       end,
       zoomSize: { width: 200, height: 200 }, // 固定大小 200x200
     });
-    
-    console.log('Set zoom position mode:', { isSettingZoomPosition: true, pendingZoomRegion: {
-      id: `zoom-${Date.now()}`,
-      type: 'zoom',
-      start,
-      end,
-      zoomSize: { width: 200, height: 200 },
-    }});
-    
+
+    console.log('Set zoom position mode:', {
+      isSettingZoomPosition: true, pendingZoomRegion: {
+        id: `zoom-${Date.now()}`,
+        type: 'zoom',
+        start,
+        end,
+        zoomSize: { width: 200, height: 200 },
+      }
+    });
+
     // 显示提示
     toast({
       title: '设置放大位置',
@@ -368,7 +370,7 @@ export default function EditPage() {
     ffmpeg.on('progress', ({ progress, time }) => {
       // 只在导出过程中更新进度，避免与手动设置的进度冲突
       if (isProcessing) {
-      setProgress(Math.round(progress * 100));
+        setProgress(Math.round(progress * 100));
       }
     });
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
@@ -406,7 +408,7 @@ export default function EditPage() {
 
         const url = URL.createObjectURL(videoBlob);
         setVideoUrl(url);
-        
+
         toast({
           title: '视频加载成功',
           description: '视频已加载，可以开始编辑',
@@ -440,7 +442,7 @@ export default function EditPage() {
             return [...prev, ...filtered];
           });
         }
-      } catch {}
+      } catch { }
       // 只用一次后清理，避免下次重复
       localStorage.removeItem('autoZoomRegions');
     }
@@ -467,9 +469,9 @@ export default function EditPage() {
         setTrimValues([0, actualDuration]);
       }
     }
-};
+  };
 
-  
+
 
   const handleTrim = async () => {
     if (!ffmpegRef.current || !videoUrl || !ffmpegRef.current.loaded) {
@@ -480,25 +482,25 @@ export default function EditPage() {
     setIsProcessing(true);
     setProgress(0);
     setEditedVideoUrl(null);
-    
+
     const ffmpeg = ffmpegRef.current;
     const inputFileName = 'input.webm';
     const outputFileName = 'output.mp4';
-    
+
     await ffmpeg.writeFile(inputFileName, await fetchFile(videoUrl));
 
     const [startTime, endTime] = trimValues;
     const trimDuration = endTime - startTime;
 
     await ffmpeg.exec([
-        '-ss', startTime.toString(),
+      '-ss', startTime.toString(),
       '-i', inputFileName,
       '-t', trimDuration.toString(),
       '-c:v', 'libx264',
       '-c:a', 'aac',
       '-movflags', 'faststart',
       outputFileName
-      ]);
+    ]);
 
 
     const data = await ffmpeg.readFile(outputFileName);
@@ -555,7 +557,7 @@ export default function EditPage() {
           videoFrameRate = Math.round(settings.frameRate);
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     // fallback: 用 duration/totalFrames 估算
     if (!videoFrameRate && duration && videoRef.current?.videoWidth) {
       videoFrameRate = Math.round((videoRef.current as any).getVideoPlaybackQuality?.().totalVideoFrames / duration) || 30;
@@ -708,9 +710,8 @@ export default function EditPage() {
                   ref={videoRef}
                   src={editedVideoUrl || videoUrl || undefined}
                   controls
-                  className={`w-full aspect-video rounded-lg bg-muted ${
-                    isSettingZoomPosition ? 'cursor-crosshair' : ''
-                  }`}
+                  className={`w-full aspect-video rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''
+                    }`}
                   style={videoStyle}
                   onLoadedMetadata={handleLoadedMetadata}
                   onTimeUpdate={handleTimeUpdate}
@@ -726,53 +727,53 @@ export default function EditPage() {
                   </div>
                 )}
               </div>
-          </div>
-          {/* 时间轴和工具栏 */}
-          <TimelineToolbar
-            onAddZoom={handleAddZoom}
-            onAddTrim={handleAddTrim}
-            onDelete={handleDelete}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            onReset={handleReset}
+            </div>
+            {/* 时间轴和工具栏 */}
+            <TimelineToolbar
+              onAddZoom={handleAddZoom}
+              onAddTrim={handleAddTrim}
+              onDelete={handleDelete}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              onReset={handleReset}
               onPlayPause={handlePlayPause}
               onCancelZoomPosition={handleCancelZoomPosition}
               isPlaying={isPlaying}
               selectedId={selectedRegionId}
               isSettingZoomPosition={isSettingZoomPosition}
             />
-          <TimelineEditor
-            duration={duration}
-              regions={regions.map(r => ({ 
-                ...r, 
+            <TimelineEditor
+              duration={duration}
+              regions={regions.map(r => ({
+                ...r,
                 selected: r.id === selectedRegionId,
-                active: r.id === activeRegionId 
+                active: r.id === activeRegionId
               }))}
               selectedId={selectedRegionId}
-            currentTime={currentTime}
+              currentTime={currentTime}
               onSelect={setSelectedRegionId}
               onChange={setRegions}
-            onTimeChange={handleTimeChange}
-            onSeekAndPlay={handleSeekAndPlay}
-          />
+              onTimeChange={handleTimeChange}
+              onSeekAndPlay={handleSeekAndPlay}
+            />
           </div>
           <div className="md:col-span-1 space-y-4">
-          <ExportPanel
+            <ExportPanel
               onExport={handleExport}
               isProcessing={isProcessing}
               progress={progress}
-            aspectRatio={aspectRatio}
-            onAspectRatioChange={setAspectRatio}
-            background={background}
-            onBackgroundChange={setBackground}
-            onBackgroundUpload={handleBackgroundUpload}
+              aspectRatio={aspectRatio}
+              onAspectRatioChange={setAspectRatio}
+              background={background}
+              onBackgroundChange={setBackground}
+              onBackgroundUpload={handleBackgroundUpload}
             />
             <ZoomLevelControl
               zoomLevel={regions.find(r => r.id === activeRegionId)?.zoomLevel || 1.5}
               onZoomLevelChange={handleZoomLevelChange}
               isVisible={!!activeRegionId}
-          />
-        </div>
+            />
+          </div>
         </CardContent>
       </Card>
     </main>
