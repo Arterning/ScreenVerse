@@ -469,6 +469,11 @@ export default function EditPage() {
         setDuration(actualDuration);
         setTrimValues([0, actualDuration]);
       }
+      // 自动播放
+      if (video.paused) {
+        video.play();
+        setIsPlaying(true);
+      }
     }
   };
 
@@ -750,6 +755,7 @@ export default function EditPage() {
                   src={editedVideoUrl || videoUrl || undefined}
                   controls
                   loop
+                  muted
                   className={`w-full aspect-video rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''
                     }`}
                   style={videoStyle}
