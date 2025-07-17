@@ -6,12 +6,12 @@ import type { RecordingStatus, Settings, ExportFormat } from "./types";
 import GIF from "gif.js";
 
 const initialSettings: Settings = {
-  resolution: "1080",
+  resolution: "2160",
   frameRate: "30",
   includeSystemAudio: true,
-  includeMic: false,
+  includeMic: true,
   pipEnabled: false,
-  highlightCursor: true,
+  highlightCursor: false,
   highlightClicks: true,
   followMouse: false,
   exportFormat: "video/webm",
