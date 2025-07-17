@@ -18,6 +18,8 @@ const messages = {
     saveFailedDesc: '无法保存录屏到库中',
     errorPrepareEdit: '编辑准备失败',
     errorSaveEditor: '无法为编辑器保存视频，请重试。',
+    reset: '重置',
+    resetConfirm: '此操作会删除所有在时间轴上的修改，确认继续吗？',
     // ... 其他 key
   },
   en: {
@@ -35,6 +37,8 @@ const messages = {
     saveFailedDesc: 'Could not save recording to library',
     errorPrepareEdit: 'Error preparing for edit',
     errorSaveEditor: 'Could not save the video for the editor. Please try again.',
+    reset: 'Reset',
+    resetConfirm: 'This will delete all changes on the timeline. Are you sure you want to continue?',
     // ... other keys
   }
 };

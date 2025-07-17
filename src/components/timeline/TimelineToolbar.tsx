@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, Scissors, Undo2, Redo2, Trash2, RefreshCcw, Play, Pause } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface TimelineToolbarProps {
   onAddZoom: () => void;
@@ -34,6 +35,12 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
   timelineScale,
   onTimelineScaleChange,
 }) => {
+  const { t } = useLanguage();
+  const handleResetClick = () => {
+    if (window.confirm(t('resetConfirm'))) {
+      onReset();
+    }
+  };
   return (
     <div className="flex gap-2 my-4 items-center">
       <Button variant="outline" size="sm" onClick={onPlayPause} title="播放/暂停">
@@ -57,7 +64,7 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
           <Button variant="ghost" size="sm" onClick={onRedo} title="重做">
             <Redo2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onReset} title="重置">
+          <Button variant="ghost" size="sm" onClick={handleResetClick} title={t('reset')}>
             <RefreshCcw className="w-4 h-4" />
           </Button>
           <Button variant="destructive" size="sm" onClick={onDelete} title="删除选中区域" disabled={!selectedId}>
