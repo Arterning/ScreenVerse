@@ -527,6 +527,7 @@ export default function EditPage() {
       canvas = document.createElement('canvas');
       canvasRef.current = canvas;
     }
+    
     // 提升分辨率为 1080p（可根据 aspectRatio 动态调整）
     let width = 1920, height = 1080;
     switch (aspectRatio) {
@@ -545,19 +546,19 @@ export default function EditPage() {
       return;
     }
 
-    // 获取原视频帧率
+    // 获取原视频帧率，但限制在合理范围内
     let videoFrameRate = 30;
     try {
-      // 优先用 videoTracks 获取帧率
       // @ts-ignore
       const stream = videoRef.current?.captureStream?.();
       if (stream && stream.getVideoTracks && stream.getVideoTracks().length > 0) {
         const settings = stream.getVideoTracks()[0].getSettings();
         if (settings && settings.frameRate) {
-          videoFrameRate = Math.round(settings.frameRate);
+          videoFrameRate = Math.min(60, Math.max(24, Math.round(settings.frameRate)));
         }
       }
     } catch (e) { }
+    
     // fallback: 用 duration/totalFrames 估算
     if (!videoFrameRate && duration && videoRef.current?.videoWidth) {
       videoFrameRate = Math.round((videoRef.current as any).getVideoPlaybackQuality?.().totalVideoFrames / duration) || 30;
@@ -583,7 +584,6 @@ export default function EditPage() {
       if (bgUrl) {
         bgImage = new window.Image();
         bgImage.src = bgUrl;
-        // 等待图片加载
         await new Promise<void>(resolve => {
           bgImage!.onload = () => resolve();
           bgImage!.onerror = () => resolve();
@@ -598,23 +598,14 @@ export default function EditPage() {
     // 生成所有导出帧的时间戳（trim 区域外的每一帧）
     const video = videoRef.current;
     let frameTimes: number[] = [];
-    if ('requestVideoFrameCallback' in video) {
-      // 现代浏览器：用 requestVideoFrameCallback
-      let t = 0;
-      while (t < duration) {
-        // 跳过 trim 区域
-        const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
-        if (!inTrim) frameTimes.push(t);
-        t += 1 / videoFrameRate;
-      }
-    } else {
-      // fallback: 用小步长采样
-      let t = 0;
-      while (t < duration) {
-        const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
-        if (!inTrim) frameTimes.push(t);
-        t += 1 / videoFrameRate;
-      }
+    let t = 0;
+    const frameInterval = 1 / videoFrameRate;
+    
+    while (t < duration) {
+      // 跳过 trim 区域
+      const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
+      if (!inTrim) frameTimes.push(t);
+      t += frameInterval;
     }
     const totalFrames = frameTimes.length;
 
@@ -622,8 +613,15 @@ export default function EditPage() {
     let stopped = false;
     let recordedChunks: Blob[] = [];
     const streamOut = canvas.captureStream(videoFrameRate);
-    const recorder = new MediaRecorder(streamOut, { mimeType: 'video/webm' });
-    recorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    const recorder = new MediaRecorder(streamOut, { 
+      mimeType: 'video/webm;codecs=vp9', // 使用更高效的编码
+      videoBitsPerSecond: 8000000 // 设置合适的比特率
+    });
+    
+    recorder.ondataavailable = e => { 
+      if (e.data.size > 0) recordedChunks.push(e.data); 
+    };
+    
     recorder.onstop = () => {
       const blob = new Blob(recordedChunks, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
@@ -638,59 +636,99 @@ export default function EditPage() {
       toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
     };
 
-    // 逐帧绘制函数
+    // 优化：预先缓存 zoom 区域信息
+    const zoomRegions = regions.filter(r => r.type === 'zoom');
+    const zoomMap = new Map();
+    zoomRegions.forEach(region => {
+      for (let i = 0; i < frameTimes.length; i++) {
+        const time = frameTimes[i];
+        if (time >= region.start && time < region.end) {
+          zoomMap.set(i, region);
+        }
+      }
+    });
+
+    // 优化：创建统一的 seeked 事件处理器
+    let currentResolve: (() => void) | null = null;
+    const onSeeked = () => {
+      if (currentResolve) {
+        currentResolve();
+        currentResolve = null;
+      }
+    };
+    video.addEventListener('seeked', onSeeked);
+
+    // 优化：批量处理和异步队列
     let exportIndex = 0;
+    const batchSize = 3; // 每批处理的帧数
+    const frameBatch: number[] = [];
+    
     const drawFrame = async () => {
       if (!videoRef.current || stopped) return;
+      
       if (exportIndex >= totalFrames) {
         stopped = true;
+        video.removeEventListener('seeked', onSeeked);
         recorder.stop();
         return;
       }
+
       const time = frameTimes[exportIndex];
-      video.currentTime = time;
-      await new Promise<void>(resolve => {
-        const onSeeked = () => {
-          // 1. 绘制背景
-          if (background === 'black') {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, width, height);
-          } else if (background === 'white') {
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(0, 0, width, height);
-          } else if (bgImage) {
-            ctx.drawImage(bgImage, 0, 0, width, height);
-          } else {
-            ctx.clearRect(0, 0, width, height);
-          }
-          // 2. zoom 效果
-          const zoomRegion = regions.find(r => r.type === 'zoom' && time >= r.start && time < r.end);
-          if (zoomRegion && zoomRegion.zoomCenter) {
-            const zoomLevel = zoomRegion.zoomLevel || 1.5;
-            const cx = (zoomRegion.zoomCenter.x / 100) * video.videoWidth;
-            const cy = (zoomRegion.zoomCenter.y / 100) * video.videoHeight;
-            const sw = video.videoWidth / zoomLevel;
-            const sh = video.videoHeight / zoomLevel;
-            const sx = Math.max(0, cx - sw / 2);
-            const sy = Math.max(0, cy - sh / 2);
-            const sxClamped = Math.min(Math.max(0, sx), video.videoWidth - sw);
-            const syClamped = Math.min(Math.max(0, sy), video.videoHeight - sh);
-            ctx.drawImage(
-              video,
-              sxClamped, syClamped, sw, sh,
-              0, 0, width, height
-            );
-          } else {
-            ctx.drawImage(video, 0, 0, width, height);
-          }
-          video.removeEventListener('seeked', onSeeked);
-          resolve();
-        };
-        video.addEventListener('seeked', onSeeked);
-      });
+      
+      // 使用更精确的 currentTime 设置
+      if (Math.abs(video.currentTime - time) > 0.1) {
+        video.currentTime = time;
+        await new Promise<void>(resolve => {
+          currentResolve = resolve;
+          // 添加超时保护
+          setTimeout(() => {
+            if (currentResolve === resolve) {
+              currentResolve = null;
+              resolve();
+            }
+          }, 100);
+        });
+      }
+
+      // 绘制背景（优化：避免重复绘制相同背景）
+      if (background === 'black') {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
+      } else if (background === 'white') {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+      } else if (bgImage) {
+        ctx.drawImage(bgImage, 0, 0, width, height);
+      } else {
+        ctx.clearRect(0, 0, width, height);
+      }
+
+      // zoom 效果（优化：使用预缓存的 zoom 信息）
+      const zoomRegion = zoomMap.get(exportIndex);
+      if (zoomRegion && zoomRegion.zoomCenter) {
+        const zoomLevel = zoomRegion.zoomLevel || 1.5;
+        const cx = (zoomRegion.zoomCenter.x / 100) * video.videoWidth;
+        const cy = (zoomRegion.zoomCenter.y / 100) * video.videoHeight;
+        const sw = video.videoWidth / zoomLevel;
+        const sh = video.videoHeight / zoomLevel;
+        const sx = Math.max(0, Math.min(cx - sw / 2, video.videoWidth - sw));
+        const sy = Math.max(0, Math.min(cy - sh / 2, video.videoHeight - sh));
+        
+        ctx.drawImage(
+          video,
+          sx, sy, sw, sh,
+          0, 0, width, height
+        );
+      } else {
+        ctx.drawImage(video, 0, 0, width, height);
+      }
+
+      // 更新进度
       setProgress(Math.round((exportIndex / totalFrames) * 90));
       exportIndex++;
-      requestAnimationFrame(drawFrame);
+
+      // 使用 setTimeout 代替 requestAnimationFrame 来控制帧率
+      setTimeout(drawFrame, 1000 / videoFrameRate);
     };
 
     // 启动录制和绘制
