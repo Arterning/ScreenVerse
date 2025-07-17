@@ -37,6 +37,7 @@ export default function EditPage() {
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null); // 新增：激活的区域ID
   const [history, setHistory] = useState<TimelineRegion[][]>([]);
   const [redoStack, setRedoStack] = useState<TimelineRegion[][]>([]);
+  const [timelineScale, setTimelineScale] = useState(1);
 
   // 播放控制状态
   const [isPlaying, setIsPlaying] = useState(false);
@@ -748,6 +749,7 @@ export default function EditPage() {
                   ref={videoRef}
                   src={editedVideoUrl || videoUrl || undefined}
                   controls
+                  loop
                   className={`w-full aspect-video rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''
                     }`}
                   style={videoStyle}
@@ -779,6 +781,8 @@ export default function EditPage() {
               isPlaying={isPlaying}
               selectedId={selectedRegionId}
               isSettingZoomPosition={isSettingZoomPosition}
+              timelineScale={timelineScale}
+              onTimelineScaleChange={setTimelineScale}
             />
             <TimelineEditor
               duration={duration}
@@ -793,6 +797,7 @@ export default function EditPage() {
               onChange={setRegions}
               onTimeChange={handleTimeChange}
               onSeekAndPlay={handleSeekAndPlay}
+              timelineScale={timelineScale}
             />
           </div>
           <div className="md:col-span-1 space-y-4">

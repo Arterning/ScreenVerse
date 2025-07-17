@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, Scissors, Undo2, Redo2, Trash2, RefreshCcw, Play, Pause } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 
 interface TimelineToolbarProps {
   onAddZoom: () => void;
@@ -14,6 +15,8 @@ interface TimelineToolbarProps {
   isPlaying: boolean;
   selectedId: string | null;
   isSettingZoomPosition?: boolean;
+  timelineScale: number;
+  onTimelineScaleChange: (scale: number) => void;
 }
 
 export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
@@ -28,6 +31,8 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
   isPlaying,
   selectedId,
   isSettingZoomPosition = false,
+  timelineScale,
+  onTimelineScaleChange,
 }) => {
   return (
     <div className="flex gap-2 my-4 items-center">
@@ -60,6 +65,19 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
           </Button>
         </>
       )}
+      <div className="flex-1" />
+      <div className="flex items-center gap-2 min-w-[180px]">
+        <span className="text-xs text-gray-500">缩放</span>
+        <Slider
+          min={1}
+          max={5}
+          step={0.01}
+          value={[timelineScale]}
+          onValueChange={v => onTimelineScaleChange(v[0])}
+          className="w-24"
+        />
+        <span className="text-xs text-gray-500 w-8 text-right">{timelineScale.toFixed(2)}x</span>
+      </div>
     </div>
   );
 };
