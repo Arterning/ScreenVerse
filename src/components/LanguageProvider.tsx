@@ -20,6 +20,8 @@ const messages = {
     errorSaveEditor: '无法为编辑器保存视频，请重试。',
     reset: '重置',
     resetConfirm: '此操作会删除所有在时间轴上的修改，确认继续吗？',
+    settingsTitle: '录制设置',
+    settingsDesc: '配置您的屏幕录制设置，包括视频质量、音频选项和鼠标效果。',
     // ... 其他 key
   },
   en: {
@@ -39,6 +41,8 @@ const messages = {
     errorSaveEditor: 'Could not save the video for the editor. Please try again.',
     reset: 'Reset',
     resetConfirm: 'This will delete all changes on the timeline. Are you sure you want to continue?',
+    settingsTitle: 'Recording Settings',
+    settingsDesc: 'Configure your screen recording settings, including video quality, audio options, and mouse effects.',
     // ... other keys
   }
 };
