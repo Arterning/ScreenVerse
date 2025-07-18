@@ -16,11 +16,13 @@ import { TimelineEditor, TimelineRegion } from '@/components/timeline/TimelineEd
 import { TimelineToolbar } from '@/components/timeline/TimelineToolbar';
 import { ExportPanel } from '@/components/timeline/ExportPanel';
 import { ZoomLevelControl } from '@/components/timeline/ZoomLevelControl';
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function EditPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [editedVideoUrl, setEditedVideoUrl] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
@@ -249,8 +251,8 @@ export default function EditPage() {
 
     // 显示成功提示
     toast({
-      title: '放大区域已添加',
-      description: `放大中心点设置在 (${Math.round(x)}%, ${Math.round(y)}%)，可以继续播放视频查看效果`,
+      title: t('zoomRegionAdded'),
+      description: t('zoomRegionAddedDesc', { x: Math.round(x), y: Math.round(y) }),
     });
   };
 
@@ -259,8 +261,8 @@ export default function EditPage() {
     setIsSettingZoomPosition(false);
     setPendingZoomRegion(null);
     toast({
-      title: '已取消',
-      description: '放大位置设置已取消，可以继续播放视频',
+      title: t('cancelled'),
+      description: t('zoomPositionCancelled'),
     });
   };
 
@@ -307,8 +309,8 @@ export default function EditPage() {
 
     // 显示提示
     toast({
-      title: '设置放大位置',
-      description: '视频已暂停，点击视频上的任意位置来设置放大中心点',
+      title: t('setZoomPosition'),
+      description: t('setZoomPositionDesc'),
     });
   };
   const handleAddTrim = () => {
@@ -388,8 +390,8 @@ export default function EditPage() {
         const videoId = params.id as string;
         if (!videoId) {
           toast({
-            title: '参数错误',
-            description: '缺少视频ID参数',
+            title: t('paramError'),
+            description: t('missingVideoId'),
             variant: 'destructive',
           });
           router.push('/recordings');
@@ -399,8 +401,8 @@ export default function EditPage() {
         const videoBlob = await getVideoFromDB(videoId);
         if (!videoBlob) {
           toast({
-            title: '视频不存在',
-            description: '无法找到指定的视频文件',
+            title: t('videoNotFound'),
+            description: t('cannotFindVideo'),
             variant: 'destructive',
           });
           router.push('/recordings');
@@ -411,14 +413,14 @@ export default function EditPage() {
         setVideoUrl(url);
 
         toast({
-          title: '视频加载成功',
-          description: '视频已加载，可以开始编辑',
+          title: t('videoLoaded'),
+          description: t('videoLoadedDesc'),
         });
       } catch (error) {
         console.error('Failed to load video:', error);
         toast({
-          title: '加载失败',
-          description: '无法加载视频文件',
+          title: t('loadFailed'),
+          description: t('cannotLoadVideo'),
           variant: 'destructive',
         });
         router.push('/recordings');
@@ -481,7 +483,7 @@ export default function EditPage() {
 
   const handleTrim = async () => {
     if (!ffmpegRef.current || !videoUrl || !ffmpegRef.current.loaded) {
-      toast({ title: 'FFmpeg not loaded', variant: 'destructive' });
+      toast({ title: t('ffmpegNotLoaded'), variant: 'destructive' });
       return;
     }
 
@@ -514,13 +516,13 @@ export default function EditPage() {
     const url = URL.createObjectURL(blob);
     setEditedVideoUrl(url);
     setIsProcessing(false);
-    toast({ title: 'Trimming complete!', description: 'Your video has been trimmed.' });
+    toast({ title: t('trimmingComplete'), description: t('trimmingCompleteDesc') });
   };
 
   // 导出功能 - Canvas 逐帧渲染与录制
   const handleExport = async () => {
     if (!videoRef.current || !videoUrl) {
-      toast({ title: '视频未加载', variant: 'destructive' });
+      toast({ title: t('videoNotLoaded'), variant: 'destructive' });
       return;
     }
 
@@ -547,7 +549,7 @@ export default function EditPage() {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      toast({ title: 'Canvas 初始化失败', variant: 'destructive' });
+      toast({ title: t('canvasInitializationFailed'), variant: 'destructive' });
       setIsProcessing(false);
       return;
     }
@@ -639,7 +641,7 @@ export default function EditPage() {
       document.body.removeChild(a);
       setProgress(100);
       setIsProcessing(false);
-      toast({ title: '导出完成', description: '视频已导出为 webm 文件' });
+      toast({ title: t('exportComplete'), description: t('exportCompleteDesc') });
     };
 
     // 优化：预先缓存 zoom 区域信息

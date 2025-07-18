@@ -50,7 +50,7 @@ export default function SettingsPanel({
   return (
     <fieldset
       disabled={isRecording}
-      className="w-full max-w-md lg:max-w-sm sticky top-20 self-start"
+      className="w-full max-w-md lg:max-w-xl sticky top-20 self-start"
     >
       <Card>
         <CardHeader>

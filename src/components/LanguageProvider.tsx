@@ -39,6 +39,27 @@ const messages = {
     highlightClicksDesc: '动画显示鼠标点击。',
     followMouse: '跟随并缩放鼠标',
     followMouseDesc: '缩放并跟随鼠标指针。',
+    zoomRegionAdded: '放大区域已添加',
+    zoomRegionAddedDesc: ({x, y}: {x: number, y: number}) => `放大中心点设置在 (${x}%, ${y}%)，可以继续播放视频查看效果`,
+    cancelled: '已取消',
+    zoomPositionCancelled: '放大位置设置已取消，可以继续播放视频',
+    setZoomPosition: '设置放大位置',
+    setZoomPositionDesc: '视频已暂停，点击视频上的任意位置来设置放大中心点',
+    paramError: '参数错误',
+    missingVideoId: '缺少视频ID参数',
+    videoNotFound: '视频不存在',
+    cannotFindVideo: '无法找到指定的视频文件',
+    videoLoaded: '视频加载成功',
+    videoLoadedDesc: '视频已加载，可以开始编辑',
+    loadFailed: '加载失败',
+    cannotLoadVideo: '无法加载视频文件',
+    ffmpegNotLoaded: 'FFmpeg 未加载',
+    trimmingComplete: '裁剪完成',
+    trimmingCompleteDesc: '您的视频已被裁剪。',
+    videoNotLoaded: '视频未加载',
+    canvasInitializationFailed: 'Canvas 初始化失败',
+    exportComplete: '导出完成',
+    exportCompleteDesc: '视频已导出为 webm 文件',
     // ... 其他 key
   },
   en: {
@@ -77,23 +98,52 @@ const messages = {
     highlightClicksDesc: 'Animate mouse clicks.',
     followMouse: 'Follow & Zoom Mouse',
     followMouseDesc: 'Zoom and follow the cursor.',
+    zoomRegionAdded: 'Zoom region added',
+    zoomRegionAddedDesc: ({x, y}: {x: number, y: number}) => `Zoom center set at (${x}%, ${y}%), you can continue to play the video to see the effect.`,
+    cancelled: 'Cancelled',
+    zoomPositionCancelled: 'Zoom position setting cancelled, you can continue to play the video',
+    setZoomPosition: 'Set Zoom Position',
+    setZoomPositionDesc: 'Video paused, click anywhere on the video to set the zoom center',
+    paramError: 'Parameter Error',
+    missingVideoId: 'Missing video ID parameter',
+    videoNotFound: 'Video not found',
+    cannotFindVideo: 'Cannot find the specified video file',
+    videoLoaded: 'Video loaded',
+    videoLoadedDesc: 'Video loaded, you can start editing',
+    loadFailed: 'Load failed',
+    cannotLoadVideo: 'Cannot load video file',
+    ffmpegNotLoaded: 'FFmpeg not loaded',
+    trimmingComplete: 'Trimming complete',
+    trimmingCompleteDesc: 'Your video has been trimmed.',
+    videoNotLoaded: 'Video not loaded',
+    canvasInitializationFailed: 'Canvas initialization failed',
+    exportComplete: 'Export complete',
+    exportCompleteDesc: 'Video has been exported as a webm file',
     // ... other keys
   }
 };
 
 export type Lang = 'zh' | 'en';
 
+type MessageValue = string | ((params?: Record<string, any>) => string);
+
 interface LanguageContextProps {
   lang: Lang;
   setLang: (lang: Lang) => void;
-  t: (key: keyof typeof messages['zh']) => string;
+  t: (key: keyof typeof messages['zh'], params?: any) => string;
 }
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>('zh');
-  const t = (key: keyof typeof messages['zh']) => messages[lang][key] || key;
+  const t = (key: keyof typeof messages['zh'], params?: any) => {
+    const value = messages[lang][key];
+    if (typeof value === 'function') {
+      return value(params || {});
+    }
+    return value || key;
+  };
   return (
     <LanguageContext.Provider value={{ lang, setLang, t }}>
       {children}
