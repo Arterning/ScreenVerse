@@ -744,6 +744,16 @@ export default function EditPage() {
     drawFrame();
   };
 
+  // 计算视频预览的宽高比 class
+  function getAspectClass(ratio: string) {
+    switch (ratio) {
+      case '16:9': return 'aspect-[16/9]';
+      case '4:3': return 'aspect-[4/3]';
+      case '1:1': return 'aspect-[1/1]';
+      case '9:16': return 'aspect-[9/16]';
+      default: return 'aspect-video';
+    }
+  }
 
   return (
     <main className="container mx-auto px-2 py-4">
@@ -758,8 +768,7 @@ export default function EditPage() {
                   controls
                   loop
                   muted
-                  className={`w-full aspect-video rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''
-                    }`}
+                  className={`w-full ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
                   style={videoStyle}
                   onLoadedMetadata={handleLoadedMetadata}
                   onTimeUpdate={handleTimeUpdate}
