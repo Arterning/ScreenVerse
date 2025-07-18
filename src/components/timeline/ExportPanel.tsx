@@ -30,11 +30,11 @@ const PRESET_BACKGROUNDS = [
     name: 'Tech Blue',
     url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop'
   },
-  {
-    id: 'cyber-grid',
-    name: 'Cyber Grid',
-    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop'
-  },
+  // {
+  //   id: 'cyber-grid',
+  //   name: 'Cyber Grid',
+  //   url: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop'
+  // },
   {
     id: 'neon-purple',
     name: 'Neon Purple',
@@ -123,7 +123,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
             <SelectContent>
               {PRESET_BACKGROUNDS.map(bg => (
                 <SelectItem key={bg.id} value={bg.id}>
-                  {t(bg.id + 'BgName')}
+                  {t(bg.id)}
                 </SelectItem>
               ))}
               <SelectItem value="custom">{t('customImage')}</SelectItem>

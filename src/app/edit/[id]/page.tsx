@@ -755,35 +755,83 @@ export default function EditPage() {
     }
   }
 
+  // 预置背景图片（与 ExportPanel 保持一致）
+  const PRESET_BACKGROUNDS = [
+    { id: 'none', url: null },
+    { id: 'black', url: null },
+    { id: 'white', url: null },
+    { id: 'tech-blue', url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop' },
+    { id: 'neon-purple', url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&h=600&fit=crop' },
+    { id: 'matrix-green', url: 'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&h=600&fit=crop' },
+    { id: 'futuristic-orange', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop' },
+  ];
+
   return (
     <main className="container mx-auto px-2 py-4">
       <Card className="border-0 shadow-none">
         <CardContent className="grid md:grid-cols-5 gap-4 p-4">
           <div className="md:col-span-4">
             <div className="overflow-hidden rounded-lg">
-              <div className="relative">
-                <video
-                  ref={videoRef}
-                  src={editedVideoUrl || videoUrl || undefined}
-                  controls
-                  loop
-                  muted
-                  className={`w-full ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
-                  style={videoStyle}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onTimeUpdate={handleTimeUpdate}
-                  onPlay={handlePlay}
-                  onPause={handlePause}
-                  onClick={handleVideoClick}
-                />
-                {isSettingZoomPosition && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg pointer-events-none">
-                    <div className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
-                      点击视频设置放大中心点
-                    </div>
+              {(() => {
+                const bgObj = PRESET_BACKGROUNDS.find(bg => bg.id === background);
+                const bgUrl = bgObj?.url;
+                return bgUrl ? (
+                  <div
+                    className="relative"
+                    style={{
+                      backgroundImage: `url(${bgUrl})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  >
+                    <video
+                      ref={videoRef}
+                      src={editedVideoUrl || videoUrl || undefined}
+                      controls
+                      loop
+                      muted
+                      className={`w-full ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
+                      style={videoStyle}
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onTimeUpdate={handleTimeUpdate}
+                      onPlay={handlePlay}
+                      onPause={handlePause}
+                      onClick={handleVideoClick}
+                    />
+                    {isSettingZoomPosition && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg pointer-events-none">
+                        <div className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+                          点击视频设置放大中心点
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                ) : (
+                  <div className="relative">
+                    <video
+                      ref={videoRef}
+                      src={editedVideoUrl || videoUrl || undefined}
+                      controls
+                      loop
+                      muted
+                      className={`w-full ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
+                      style={videoStyle}
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onTimeUpdate={handleTimeUpdate}
+                      onPlay={handlePlay}
+                      onPause={handlePause}
+                      onClick={handleVideoClick}
+                    />
+                    {isSettingZoomPosition && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg pointer-events-none">
+                        <div className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+                          点击视频设置放大中心点
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             {/* 时间轴和工具栏 */}
             <TimelineToolbar
