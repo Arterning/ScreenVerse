@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Download, Upload } from 'lucide-react';
+import { useLanguage } from "@/components/LanguageProvider";
 
 // 预置背景图片
 const PRESET_BACKGROUNDS = [
@@ -73,6 +74,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   onBackgroundUpload,
 }) => {
   const [customBackground, setCustomBackground] = useState<string>('');
+  const { t } = useLanguage();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -92,39 +94,39 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Export Settings</CardTitle>
+        <CardTitle>{t('exportSettings')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Aspect Ratio */}
         <div className="space-y-2">
-          <Label htmlFor="aspect-ratio">Aspect Ratio</Label>
+          <Label htmlFor="aspect-ratio">{t('aspectRatio')}</Label>
           <Select value={aspectRatio} onValueChange={onAspectRatioChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Select aspect ratio" />
+              <SelectValue placeholder={t('selectAspectRatio')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="16:9">16:9 (Widescreen)</SelectItem>
-              <SelectItem value="4:3">4:3 (Standard)</SelectItem>
-              <SelectItem value="1:1">1:1 (Square)</SelectItem>
-              <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
+              <SelectItem value="16:9">16:9 ({t('widescreen')})</SelectItem>
+              <SelectItem value="4:3">4:3 ({t('standard')})</SelectItem>
+              <SelectItem value="1:1">1:1 ({t('square')})</SelectItem>
+              <SelectItem value="9:16">9:16 ({t('portrait')})</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Background */}
         <div className="space-y-2">
-          <Label htmlFor="background">Background</Label>
+          <Label htmlFor="background">{t('background')}</Label>
           <Select value={background} onValueChange={onBackgroundChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Select background" />
+              <SelectValue placeholder={t('selectBackground')} />
             </SelectTrigger>
             <SelectContent>
               {PRESET_BACKGROUNDS.map(bg => (
                 <SelectItem key={bg.id} value={bg.id}>
-                  {bg.name}
+                  {t(bg.id + 'BgName')}
                 </SelectItem>
               ))}
-              <SelectItem value="custom">Custom Image</SelectItem>
+              <SelectItem value="custom">{t('customImage')}</SelectItem>
             </SelectContent>
           </Select>
           
@@ -133,7 +135,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
             <div className="mt-2">
               <img 
                 src={selectedBackground.url} 
-                alt={selectedBackground.name} 
+                alt={t(selectedBackground.id + 'BgName')} 
                 className="w-full h-20 object-cover rounded border"
               />
             </div>
@@ -141,7 +143,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
           
           {background === 'custom' && (
             <div className="space-y-2">
-              <Label htmlFor="background-upload">Upload Background</Label>
+              <Label htmlFor="background-upload">{t('uploadBackground')}</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="background-upload"
@@ -156,7 +158,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
                 <div className="mt-2">
                   <img 
                     src={customBackground} 
-                    alt="Custom background" 
+                    alt={t('customImage')}
                     className="w-full h-20 object-cover rounded border"
                   />
                 </div>
@@ -169,7 +171,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
         {isProcessing && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Processing...</span>
+              <span>{t('processing')}</span>
               <span>{progress}%</span>
             </div>
             <Progress value={progress} className="w-full" />
@@ -184,7 +186,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
           size="lg"
         >
           <Download className="mr-2 h-4 w-4" />
-          {isProcessing ? 'Exporting...' : 'Export Video'}
+          {isProcessing ? t('exporting') : t('exportVideo')}
         </Button>
       </CardContent>
     </Card>

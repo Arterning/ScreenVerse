@@ -43,38 +43,38 @@ export const TimelineToolbar: React.FC<TimelineToolbarProps> = ({
   };
   return (
     <div className="flex gap-2 my-4 items-center">
-      <Button variant="outline" size="sm" onClick={onPlayPause} title="播放/暂停">
+      <Button variant="outline" size="sm" onClick={onPlayPause} title={t('playPause')}>
         {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
       </Button>
       {isSettingZoomPosition ? (
-        <Button variant="destructive" size="sm" onClick={onCancelZoomPosition} title="取消设置放大位置">
-          取消
+        <Button variant="destructive" size="sm" onClick={onCancelZoomPosition} title={t('cancelZoomPosition')}>
+          {t('cancel')}
         </Button>
       ) : (
         <>
-          <Button variant="outline" size="sm" onClick={onAddZoom} title="添加 Zoom 区域">
-            <ZoomIn className="w-4 h-4 mr-1" /> Zoom
+          <Button variant="outline" size="sm" onClick={onAddZoom} title={t('addZoomRegion')}>
+            <ZoomIn className="w-4 h-4 mr-1" /> {t('zoom')}
           </Button>
-          <Button variant="outline" size="sm" onClick={onAddTrim} title="添加 Trim 区域">
-            <Scissors className="w-4 h-4 mr-1" /> Trim
+          <Button variant="outline" size="sm" onClick={onAddTrim} title={t('addTrimRegion')}>
+            <Scissors className="w-4 h-4 mr-1" /> {t('trim')}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onUndo} title="撤销">
+          <Button variant="ghost" size="sm" onClick={onUndo} title={t('undo')}>
             <Undo2 className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onRedo} title="重做">
+          <Button variant="ghost" size="sm" onClick={onRedo} title={t('redo')}>
             <Redo2 className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={handleResetClick} title={t('reset')}>
             <RefreshCcw className="w-4 h-4" />
           </Button>
-          <Button variant="destructive" size="sm" onClick={onDelete} title="删除选中区域" disabled={!selectedId}>
+          <Button variant="destructive" size="sm" onClick={onDelete} title={t('deleteSelectedRegion')} disabled={!selectedId}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </>
       )}
       <div className="flex-1" />
       <div className="flex items-center gap-2 min-w-[180px]">
-        <span className="text-xs text-gray-500">缩放</span>
+        <span className="text-xs text-gray-500">{t('timelineScale')}</span>
         <Slider
           min={1}
           max={5}
