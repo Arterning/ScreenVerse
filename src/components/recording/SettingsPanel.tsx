@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Settings as ISettings } from "./types";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface SettingsPanelProps {
   settings: ISettings;
@@ -37,6 +38,7 @@ export default function SettingsPanel({
   setSettings,
   isRecording,
 }: SettingsPanelProps) {
+  const { t } = useLanguage();
   const handleSwitchChange = (key: keyof ISettings) => (value: boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
@@ -53,31 +55,28 @@ export default function SettingsPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-6 w-6" /> Recording Settings
+            <Settings className="h-6 w-6" /> {t('settingsTitle')}
           </CardTitle>
           <CardDescription>
-            Configure your screen capture settings before you start.
+            {t('settingsDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="video">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="video">
-                <Video className="w-4 h-4 mr-1 inline-block" />
-                Video
+                <Video className="w-4 h-4 mr-1 inline-block" /> {t('videoTab')}
               </TabsTrigger>
               <TabsTrigger value="audio">
-                <Mic className="w-4 h-4 mr-1 inline-block" />
-                Audio
+                <Mic className="w-4 h-4 mr-1 inline-block" /> {t('audioTab')}
               </TabsTrigger>
               <TabsTrigger value="mouse">
-                <MousePointer className="w-4 h-4 mr-1 inline-block" />
-                Mouse
+                <MousePointer className="w-4 h-4 mr-1 inline-block" /> {t('mouseTab')}
               </TabsTrigger>
             </TabsList>
             <TabsContent value="video" className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Resolution</Label>
+                <Label>{t('resolution')}</Label>
                 <Select
                   value={settings.resolution}
                   onValueChange={handleSelectChange("resolution")}
@@ -94,7 +93,7 @@ export default function SettingsPanel({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Frame Rate (FPS)</Label>
+                <Label>{t('frameRate')}</Label>
                 <Select
                   value={settings.frameRate}
                   onValueChange={handleSelectChange("frameRate")}
@@ -110,9 +109,9 @@ export default function SettingsPanel({
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Picture-in-Picture</Label>
+                  <Label>{t('pip')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Overlay your camera on the recording.
+                    {t('pipDesc')}
                   </p>
                 </div>
                 <Switch
@@ -124,9 +123,9 @@ export default function SettingsPanel({
             <TabsContent value="audio" className="space-y-4 pt-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>System Audio</Label>
+                  <Label>{t('systemAudio')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Record audio from your computer.
+                    {t('systemAudioDesc')}
                   </p>
                 </div>
                 <Switch
@@ -136,9 +135,9 @@ export default function SettingsPanel({
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Microphone</Label>
+                  <Label>{t('microphone')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Record your voice.
+                    {t('microphoneDesc')}
                   </p>
                 </div>
                 <Switch
@@ -150,9 +149,9 @@ export default function SettingsPanel({
             <TabsContent value="mouse" className="space-y-4 pt-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Highlight Cursor</Label>
+                  <Label>{t('highlightCursor')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Show a halo around the mouse.
+                    {t('highlightCursorDesc')}
                   </p>
                 </div>
                 <Switch
@@ -162,9 +161,9 @@ export default function SettingsPanel({
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Highlight Clicks</Label>
+                  <Label>{t('highlightClicks')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Animate mouse clicks.
+                    {t('highlightClicksDesc')}
                   </p>
                 </div>
                 <Switch
@@ -174,9 +173,9 @@ export default function SettingsPanel({
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Follow & Zoom Mouse</Label>
+                  <Label>{t('followMouse')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Zoom and follow the cursor.
+                    {t('followMouseDesc')}
                   </p>
                 </div>
                 <Switch
