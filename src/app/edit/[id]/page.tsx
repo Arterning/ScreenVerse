@@ -606,14 +606,14 @@ export default function EditPage() {
     // 生成所有导出帧的时间戳（trim 区域外的每一帧）
     const video = videoRef.current;
     let frameTimes: number[] = [];
-    let t = 0;
+    let frameTime = 0;
     const frameInterval = 1 / videoFrameRate;
     
-    while (t < duration) {
+    while (frameTime < duration) {
       // 跳过 trim 区域
-      const inTrim = trimRegions.some(region => t >= region.start && t < region.end);
+      const inTrim = trimRegions.some(region => frameTime >= region.start && frameTime < region.end);
       if (!inTrim) frameTimes.push(t);
-      t += frameInterval;
+      frameTime += frameInterval;
     }
     const totalFrames = frameTimes.length;
 
@@ -790,7 +790,7 @@ export default function EditPage() {
                       controls
                       loop
                       muted
-                      className={`w-full ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
+                      className={`w-5/6 mx-auto ${getAspectClass(aspectRatio)} rounded-lg bg-transparent ${isSettingZoomPosition ? 'cursor-crosshair' : ''}`}
                       style={videoStyle}
                       onLoadedMetadata={handleLoadedMetadata}
                       onTimeUpdate={handleTimeUpdate}
