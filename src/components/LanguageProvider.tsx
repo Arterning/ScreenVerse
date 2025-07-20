@@ -93,6 +93,8 @@ const messages = {
     processing: '处理中...',
     exporting: '正在导出...',
     exportVideo: '导出视频',
+    exportFailed: '导出失败',
+    exportFailedDesc: '视频导出失败，请重试',
     // ... 其他 key
   },
   en: {
@@ -185,6 +187,8 @@ const messages = {
     processing: 'Processing...',
     exporting: 'Exporting...',
     exportVideo: 'Export Video',
+    exportFailed: 'Export Failed',
+    exportFailedDesc: 'Video export failed, please try again',
     // ... other keys
   }
 };

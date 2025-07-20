@@ -590,11 +590,20 @@ export default function EditPage() {
         bgUrl = URL.createObjectURL(customBackgroundFile);
       }
       if (bgUrl) {
+        console.log('Loading background image:', bgUrl);
         bgImage = new window.Image();
+        bgImage.crossOrigin = 'anonymous'; // 添加跨域支持
         bgImage.src = bgUrl;
-        await new Promise<void>(resolve => {
-          bgImage!.onload = () => resolve();
-          bgImage!.onerror = () => resolve();
+        await new Promise<void>((resolve, reject) => {
+          bgImage!.onload = () => {
+            console.log('Background image loaded successfully');
+            resolve();
+          };
+          bgImage!.onerror = (error) => {
+            console.error('Failed to load background image:', error);
+            bgImage = null; // 重置为 null
+            resolve(); // 继续执行，但不使用背景图片
+          };
         });
       }
     }
@@ -612,7 +621,7 @@ export default function EditPage() {
     while (frameTime < duration) {
       // 跳过 trim 区域
       const inTrim = trimRegions.some(region => frameTime >= region.start && frameTime < region.end);
-      if (!inTrim) frameTimes.push(t);
+      if (!inTrim) frameTimes.push(frameTime);
       frameTime += frameInterval;
     }
     const totalFrames = frameTimes.length;
@@ -621,8 +630,28 @@ export default function EditPage() {
     let stopped = false;
     let recordedChunks: Blob[] = [];
     const streamOut = canvas.captureStream(videoFrameRate);
+    console.log('Canvas stream created:', streamOut.getVideoTracks().length, 'video tracks');
+    
+    // 检查支持的 MIME 类型
+    const supportedTypes = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4'
+    ];
+    
+    let mimeType = 'video/webm';
+    for (const type of supportedTypes) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        break;
+      }
+    }
+    
+    console.log('Using MIME type:', mimeType);
+    
     const recorder = new MediaRecorder(streamOut, { 
-      mimeType: 'video/webm;codecs=vp9', // 使用更高效的编码
+      mimeType,
       videoBitsPerSecond: 8000000 // 设置合适的比特率
     });
     
@@ -631,7 +660,26 @@ export default function EditPage() {
     };
     
     recorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      console.log('Recording stopped, chunks:', recordedChunks.length);
+      console.log('Total data size:', recordedChunks.reduce((sum, chunk) => sum + chunk.size, 0));
+      
+      if (recordedChunks.length === 0) {
+        console.error('No recorded chunks available');
+        setIsProcessing(false);
+        toast({ title: t('exportFailed'), description: t('exportFailedDesc'), variant: 'destructive' });
+        return;
+      }
+      
+      const blob = new Blob(recordedChunks, { type: mimeType });
+      console.log('Created blob size:', blob.size);
+      
+      if (blob.size === 0) {
+        console.error('Created blob is empty');
+        setIsProcessing(false);
+        toast({ title: t('exportFailed'), description: t('exportFailedDesc'), variant: 'destructive' });
+        return;
+      }
+      
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -675,6 +723,7 @@ export default function EditPage() {
       if (!videoRef.current || stopped) return;
       
       if (exportIndex >= totalFrames) {
+        console.log('Export completed, total frames processed:', totalFrames);
         stopped = true;
         video.removeEventListener('seeked', onSeeked);
         recorder.stop();
@@ -705,8 +754,14 @@ export default function EditPage() {
       } else if (background === 'white') {
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
-      } else if (bgImage) {
-        ctx.drawImage(bgImage, 0, 0, width, height);
+      } else if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
+        // 确保图片已完全加载
+        try {
+          ctx.drawImage(bgImage, 0, 0, width, height);
+        } catch (error) {
+          console.error('Error drawing background image:', error);
+          ctx.clearRect(0, 0, width, height);
+        }
       } else {
         ctx.clearRect(0, 0, width, height);
       }
@@ -740,6 +795,13 @@ export default function EditPage() {
     };
 
     // 启动录制和绘制
+    console.log('Starting export with settings:', {
+      background,
+      aspectRatio,
+      totalFrames,
+      videoFrameRate,
+      bgImage: bgImage ? 'loaded' : 'not loaded'
+    });
     recorder.start();
     drawFrame();
   };
