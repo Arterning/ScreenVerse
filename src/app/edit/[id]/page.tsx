@@ -608,6 +608,52 @@ export default function EditPage() {
       }
     }
 
+    // 计算video在canvas中的实际位置和尺寸（模拟 w-5/6 mx-auto 的布局）
+    const videoWidthRatio = 5/6; // w-5/6 对应 83.33%
+    const videoCanvasWidth = width * videoWidthRatio;
+    const videoCanvasHeight = height; // 假设高度占满
+    
+    // 根据aspectRatio调整video在canvas中的实际尺寸
+    let actualVideoWidth, actualVideoHeight, videoX, videoY;
+    
+    const canvasAspect = width / height;
+    let targetVideoAspect;
+    switch (aspectRatio) {
+      case '16:9': targetVideoAspect = 16/9; break;
+      case '4:3': targetVideoAspect = 4/3; break;
+      case '1:1': targetVideoAspect = 1; break;
+      case '9:16': targetVideoAspect = 9/16; break;
+      default: targetVideoAspect = 16/9;
+    }
+    
+    // 计算video实际显示尺寸（保持宽高比，适应canvas）
+    if (targetVideoAspect > canvasAspect) {
+      // video更宽，以宽度为准
+      actualVideoWidth = videoCanvasWidth;
+      actualVideoHeight = videoCanvasWidth / targetVideoAspect;
+    } else {
+      // video更高，以高度为准
+      actualVideoHeight = height;
+      actualVideoWidth = height * targetVideoAspect;
+      // 确保不超过 w-5/6 的限制
+      if (actualVideoWidth > videoCanvasWidth) {
+        actualVideoWidth = videoCanvasWidth;
+        actualVideoHeight = videoCanvasWidth / targetVideoAspect;
+      }
+    }
+    
+    // 居中定位 (mx-auto 效果)
+    videoX = (width - actualVideoWidth) / 2;
+    videoY = (height - actualVideoHeight) / 2;
+
+    console.log('Video layout calculations:', {
+      canvasSize: `${width}x${height}`,
+      videoSize: `${actualVideoWidth}x${actualVideoHeight}`,
+      videoPosition: `${videoX},${videoY}`,
+      aspectRatio,
+      targetVideoAspect
+    });
+
     // 处理 trim 区域
     const trimRegions = regions.filter(r => r.type === 'trim');
     trimRegions.sort((a, b) => a.start - b.start);
@@ -716,8 +762,6 @@ export default function EditPage() {
 
     // 优化：批量处理和异步队列
     let exportIndex = 0;
-    const batchSize = 3; // 每批处理的帧数
-    const frameBatch: number[] = [];
     
     const drawFrame = async () => {
       if (!videoRef.current || stopped) return;
@@ -747,7 +791,7 @@ export default function EditPage() {
         });
       }
 
-      // 绘制背景（优化：避免重复绘制相同背景）
+      // **关键修改：先绘制背景到整个canvas**
       if (background === 'black') {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, width, height);
@@ -755,7 +799,7 @@ export default function EditPage() {
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
       } else if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
-        // 确保图片已完全加载
+        // 背景图片铺满整个canvas (cover效果)
         try {
           ctx.drawImage(bgImage, 0, 0, width, height);
         } catch (error) {
@@ -766,9 +810,10 @@ export default function EditPage() {
         ctx.clearRect(0, 0, width, height);
       }
 
-      // zoom 效果（优化：使用预缓存的 zoom 信息）
+      // **关键修改：然后在计算好的位置绘制video内容**
       const zoomRegion = zoomMap.get(exportIndex);
       if (zoomRegion && zoomRegion.zoomCenter) {
+        // zoom 效果
         const zoomLevel = zoomRegion.zoomLevel || 1.5;
         const cx = (zoomRegion.zoomCenter.x / 100) * video.videoWidth;
         const cy = (zoomRegion.zoomCenter.y / 100) * video.videoHeight;
@@ -780,10 +825,14 @@ export default function EditPage() {
         ctx.drawImage(
           video,
           sx, sy, sw, sh,
-          0, 0, width, height
+          videoX, videoY, actualVideoWidth, actualVideoHeight
         );
       } else {
-        ctx.drawImage(video, 0, 0, width, height);
+        // 正常绘制video到计算好的位置和尺寸
+        ctx.drawImage(
+          video, 
+          videoX, videoY, actualVideoWidth, actualVideoHeight
+        );
       }
 
       // 更新进度
@@ -800,7 +849,8 @@ export default function EditPage() {
       aspectRatio,
       totalFrames,
       videoFrameRate,
-      bgImage: bgImage ? 'loaded' : 'not loaded'
+      bgImage: bgImage ? 'loaded' : 'not loaded',
+      videoLayout: { videoX, videoY, actualVideoWidth, actualVideoHeight }
     });
     recorder.start();
     drawFrame();
